@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 650" role="img" aria-label="housevitals architecture: the service is the only Modbus client; every consumer reads through the hub's cache or Prometheus, never the devices directly." font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#52514e"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2a78d6"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="650" fill="#fcfcfb"/>
+
+  <text x="30" y="40" font-size="20" font-weight="bold" fill="#0b0b0b">housevitals · architecture</text>
+  <text x="30" y="64" font-size="13" fill="#52514e">One read-only Modbus client per appliance; MCP, REST, metrics and charts all read through it.</text>
+
+  <!-- appliances -->
+  <text x="30" y="152" font-size="12" font-weight="bold" fill="#52514e">APPLIANCES · LAN</text>
+  <g font-size="13" fill="#0b0b0b">
+    <rect x="30" y="165" width="150" height="58" rx="6" fill="#ffffff" stroke="#8a8984"/>
+    <text x="105" y="190" text-anchor="middle" font-weight="bold">Heat pump 1</text>
+    <text x="105" y="208" text-anchor="middle" font-size="11" fill="#52514e">BLW NEO</text>
+    <rect x="30" y="245" width="150" height="58" rx="6" fill="#ffffff" stroke="#8a8984"/>
+    <text x="105" y="270" text-anchor="middle" font-weight="bold">Heat pump 2</text>
+    <text x="105" y="288" text-anchor="middle" font-size="11" fill="#52514e">BLW NEO</text>
+    <rect x="30" y="325" width="150" height="58" rx="6" fill="#ffffff" stroke="#8a8984"/>
+    <text x="105" y="350" text-anchor="middle" font-weight="bold">Inverter</text>
+    <text x="105" y="368" text-anchor="middle" font-size="11" fill="#52514e">Sungrow SH20T</text>
+  </g>
+  <text x="30" y="408" font-size="11" fill="#2a78d6">Modbus TCP :502, read-only</text>
+
+  <!-- process boundary -->
+  <rect x="240" y="95" width="795" height="385" rx="10" fill="none" stroke="#8a8984" stroke-dasharray="6 5"/>
+  <text x="256" y="118" font-size="12" font-weight="bold" fill="#52514e">HOME-MODBUS SERVICE · ONE PROCESS (launchd) · :8080</text>
+
+  <!-- Modbus client -->
+  <rect x="275" y="220" width="140" height="110" rx="6" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+  <text x="345" y="252" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Modbus client</text>
+  <text x="345" y="274" text-anchor="middle" font-size="11" fill="#52514e">1 connection</text>
+  <text x="345" y="290" text-anchor="middle" font-size="11" fill="#52514e">+ lock per appliance</text>
+  <text x="345" y="306" text-anchor="middle" font-size="11" fill="#52514e">(never parallel)</text>
+  <g stroke="#2a78d6" stroke-width="2" fill="none" marker-end="url(#arrow-blue)">
+    <line x1="180" y1="194" x2="273" y2="250"/>
+    <line x1="180" y1="274" x2="273" y2="275"/>
+    <line x1="180" y1="354" x2="273" y2="300"/>
+  </g>
+
+  <!-- Hub -->
+  <rect x="455" y="190" width="160" height="170" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="535" y="220" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Hub</text>
+  <text x="535" y="244" text-anchor="middle" font-size="11" fill="#52514e">poller</text>
+  <text x="535" y="260" text-anchor="middle" font-size="11" fill="#52514e">fast 15 s · slow 60 s</text>
+  <text x="535" y="276" text-anchor="middle" font-size="11" fill="#52514e">static 1 h</text>
+  <text x="535" y="304" text-anchor="middle" font-size="12" font-weight="bold" fill="#0b0b0b">cache</text>
+  <text x="535" y="322" text-anchor="middle" font-size="11" fill="#52514e">age_s · stale</text>
+  <line x1="415" y1="275" x2="453" y2="275" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="434" y="267" text-anchor="middle" font-size="10" fill="#52514e">values</text>
+
+  <!-- metrics -->
+  <rect x="455" y="395" width="160" height="56" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="535" y="418" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">OTel metrics</text>
+  <text x="535" y="436" text-anchor="middle" font-size="11" fill="#52514e">~100 values per export</text>
+  <line x1="535" y1="360" x2="535" y2="393" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="543" y="382" font-size="10" fill="#52514e">fresh values</text>
+
+  <!-- Prometheus (separate service) -->
+  <rect x="455" y="540" width="160" height="60" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="535" y="565" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Prometheus :9090</text>
+  <text x="535" y="583" text-anchor="middle" font-size="11" fill="#52514e">10 years · max 20 GB</text>
+  <line x1="535" y1="451" x2="535" y2="538" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="543" y="505" font-size="10" fill="#52514e">OTLP push every 15 s</text>
+
+  <!-- shared services -->
+  <rect x="690" y="135" width="190" height="325" rx="8" fill="#f3f2ef" stroke="#c9c8c3"/>
+  <text x="702" y="155" font-size="11" font-weight="bold" fill="#52514e">SHARED SERVICES</text>
+
+  <rect x="710" y="170" width="150" height="56" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="785" y="193" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">queries</text>
+  <text x="785" y="211" text-anchor="middle" font-size="11" fill="#52514e">live values</text>
+  <line x1="615" y1="230" x2="708" y2="198" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="652" y="205" text-anchor="middle" font-size="10" fill="#52514e">reads</text>
+
+  <rect x="710" y="265" width="150" height="66" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="785" y="290" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">ChartService</text>
+  <text x="785" y="308" text-anchor="middle" font-size="11" fill="#52514e">PNG cache per lang</text>
+  <line x1="615" y1="298" x2="708" y2="298" stroke="#52514e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <text x="652" y="316" text-anchor="middle" font-size="10" fill="#52514e">after fast poll</text>
+
+  <rect x="710" y="375" width="150" height="56" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="785" y="398" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">History</text>
+  <text x="785" y="416" text-anchor="middle" font-size="11" fill="#52514e">energy · runtime</text>
+  <line x1="785" y1="375" x2="785" y2="333" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="793" y="358" font-size="10" fill="#52514e">data</text>
+  <polyline points="615,560 660,560 660,403 708,403" fill="none" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="668" y="520" font-size="10" fill="#52514e">PromQL</text>
+
+  <!-- front ends -->
+  <rect x="905" y="175" width="115" height="60" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="962" y="200" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">MCP</text>
+  <text x="962" y="218" text-anchor="middle" font-size="11" fill="#52514e">/mcp</text>
+  <rect x="905" y="290" width="115" height="60" rx="6" fill="#ffffff" stroke="#52514e"/>
+  <text x="962" y="315" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">REST</text>
+  <text x="962" y="333" text-anchor="middle" font-size="11" fill="#52514e">/api/v1 · OpenAPI</text>
+  <line x1="880" y1="205" x2="903" y2="205" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="880" y1="320" x2="903" y2="320" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- consumers -->
+  <text x="1085" y="152" font-size="12" font-weight="bold" fill="#52514e">CONSUMERS</text>
+  <rect x="1085" y="175" width="165" height="60" rx="6" fill="#ffffff" stroke="#8a8984"/>
+  <text x="1167" y="200" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Claude</text>
+  <text x="1167" y="218" text-anchor="middle" font-size="11" fill="#52514e">tools · data in English</text>
+  <rect x="1085" y="290" width="165" height="60" rx="6" fill="#ffffff" stroke="#8a8984"/>
+  <text x="1167" y="315" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Browser, scripts</text>
+  <text x="1167" y="333" text-anchor="middle" font-size="11" fill="#52514e">JSON, PNG · ?lang=</text>
+  <rect x="1085" y="540" width="165" height="60" rx="6" fill="#ffffff" stroke="#8a8984"/>
+  <text x="1167" y="565" text-anchor="middle" font-size="13" font-weight="bold" fill="#0b0b0b">Grafana :3000</text>
+  <text x="1167" y="583" text-anchor="middle" font-size="11" fill="#52514e">dashboards de · en</text>
+  <line x1="1020" y1="205" x2="1083" y2="205" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="1020" y1="320" x2="1083" y2="320" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="615" y1="585" x2="1083" y2="585" stroke="#52514e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="850" y="577" text-anchor="middle" font-size="10" fill="#52514e">PromQL</text>
+
+  <text x="30" y="632" font-size="12" fill="#52514e">Blue: the only path to the devices. Dashed: event, not data. Consumers never open Modbus connections of their own.</text>
+</svg>

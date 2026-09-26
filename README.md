@@ -1,0 +1,575 @@
+<p align="center">
+  <img src="docs/logo.png" alt="housevitals-mcp: heat pump, inverter and PV connected to Prometheus, OpenTelemetry, REST, MCP and charts" width="420">
+</p>
+
+# housevitals-mcp
+
+`housevitals-mcp` is an open-source (MIT) service that collects telemetry from
+residential energy hardware, keeps its history, and exposes current and historical
+values through standard interfaces: Prometheus, a REST API, MCP (Model Context
+Protocol) and charts.
+
+It is a data layer between home hardware and the applications that need its data:
+dashboards, scripts, automations and AI assistants read one consistent,
+manufacturer-independent representation instead of each integrating every device.
+
+**Supported hardware** (read-only, Modbus TCP on the local network):
+
+| Device | Profiles |
+|--------|----------|
+| Brötje heat pumps | `iwr` (IWR/GTW-08 gateway), `isr` (ISR Plus/MODBM), `neo` (BLW NEO) |
+| Sungrow SH hybrid inverters, incl. battery and grid meter | `sungrow_sh` |
+
+Further devices (wallboxes, smart meters, other heat pumps or inverters) can be added
+as register profiles. The service never writes to a device.
+
+## Architecture
+
+```text
+ Heat pumps, inverter/battery/meter  (Modbus TCP, read-only)
+                │
+                ▼
+ Poller: one serialized connection per device, poll plan fast / slow / static
+                │
+                ▼
+ Cache: latest value per data point, with age and stale flag ──► REST API · MCP (live values)
+                │
+                ▼  OpenTelemetry SDK, OTLP push every 15 s
+ Prometheus: time-series storage (10 years) ─────────────────► Grafana dashboards
+                │
+                ▼  PromQL
+ History, energy balance, runtimes, PNG charts ──────────────► REST API · MCP
+```
+
+Each device-specific register (scaling, units, enum codes, invalid values) is
+normalized into named data points such as `flow_temperature` or `battery_soc`. The
+service is the only process talking to the hardware: live values come from its cache,
+so any number of consumers never cause additional device traffic. Polled values are
+exported with the OpenTelemetry SDK over OTLP directly to Prometheus' OTLP receiver
+(no collector needed); Prometheus stores the time series.
+
+The data is available through:
+
+* **Prometheus**: metrics `housevitals_*` for PromQL, Grafana and other tooling
+* **REST API**: live values, history, energy balances and charts as JSON/PNG with an OpenAPI description
+* **MCP**: the same data as tools for AI applications and agents (Claude and other MCP clients)
+* **Charts**: pre-rendered PNG charts via REST and MCP, plus German and English Grafana dashboards
+
+![Architecture](docs/architecture.svg)
+
+## Historical data
+
+The service keeps the history of every polled value instead of only the current device
+state, so signals can be related over time, for example:
+
+* heat pump power consumption vs. outdoor temperature
+* PV generation vs. household consumption
+* battery charge/discharge behaviour and state of charge
+* heat delivered vs. electricity used (performance factor per day, month, year)
+* compressor operating modes, runtimes and starts vs. energy use
+
+Energy balances use the devices' lifetime counters and local calendar days, weeks,
+months and years. The time series serve monitoring, analysis, optimization, automation
+and reporting. They are device readings, not calibrated metering, and are not suited
+for billing.
+
+## MCP interface
+
+MCP is an additional interface to the same data, next to REST and Prometheus. An MCP
+client can read live values, query history and energy balances, and get charts, and
+combine them with its other tools and context, without a separate integration per
+device. Tool results use canonical English identifiers; the AI answers in the user's
+language, and chart images are rendered in the requested language.
+
+## Design goals
+
+* Hardware-independent access to normalized data points
+* Historical time series, not just the current state
+* Open, standard interfaces (Prometheus, OpenTelemetry, OpenAPI, MCP)
+* Integration with existing observability tooling
+* Machine- and human-readable data, in English and German
+* Access for conventional applications and AI systems alike
+* Robust operation: device or Prometheus outages degrade gracefully instead of blocking
+
+The goal is a common data layer for residential hardware that does not tie its users
+to a particular manufacturer's app or dashboard.
+
+## Which profile do you need?
+
+Brötje uses three different Modbus interfaces; Sungrow hybrid inverters have their own
+profile. Pick the matching one:
+
+| Profile | Interface | Typical devices |
+|---------|-----------|-----------------|
+| `iwr` (default) | **IWR / GTW-08** Modbus gateway (often via an RS485→Ethernet converter) | Current heat pumps: BLW Eco, BLW Mono, hybrid systems |
+| `isr` | **ISR Plus / ISR MODBM** module | Older heat pumps and gas boilers with ISR controller |
+| `neo` | **NEO-RKM** or RS232→Modbus-TCP | BLW NEO (Heliotherm-based) |
+| `sungrow_sh` | Inverter LAN port or WiNet-S dongle (Modbus TCP, port 502) | Sungrow SH hybrid inverters: SH*RS, SH*RT, SH*T (e.g. SH20T) |
+
+## Installation
+
+Requires Python ≥ 3.11.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .
+```
+
+Quick check that an appliance is reachable (replace the IP):
+
+```bash
+.venv/bin/python scripts/probe.py 192.168.1.50 --profile iwr
+```
+
+## Configuration
+
+### Multiple appliances (config file)
+
+List your heat pumps and inverters in a JSON file and point the server at it with
+`--config` or `HOUSEVITALS_CONFIG` (see [devices.example.json](devices.example.json)):
+
+```json
+{
+  "lang": "en",
+  "default_device": null,
+  "devices": [
+    { "name": "heatpump1", "aliases": ["wp1", "Wärmepumpe 1"], "host": "192.168.1.21", "profile": "neo" },
+    { "name": "heatpump2", "aliases": ["wp2", "Wärmepumpe 2"], "host": "192.168.1.22", "profile": "neo" },
+    { "name": "inverter", "aliases": ["sh20t", "Wechselrichter"], "host": "192.168.1.30", "profile": "sungrow_sh" }
+  ]
+}
+```
+
+| Device field | Default | Description |
+|--------------|---------|-------------|
+| `name` | – (required) | Unique name of the appliance |
+| `aliases` | `[]` | Alternative names; matching ignores case and extra spaces |
+| `host` | – (required) | IP/hostname of the Modbus TCP interface |
+| `port` | `502` | Modbus TCP port |
+| `unit_id` | `1` | Modbus unit/slave id |
+| `profile` | `iwr` | `iwr`, `isr`, `neo` or `sungrow_sh` |
+| `zones` | `[1]` | IWR only: zones to expose, e.g. `[1, 2]` or `"all"` |
+| `timeout` | `5` | Request timeout in seconds |
+| `description` | – | Free text shown by `list_devices` |
+
+Top-level options: `lang` (default language for people: REST API labels and charts;
+see [Languages](#languages)) and `default_device` (name or alias used when a tool call
+omits `appliance`). Names and aliases must be unique across all devices.
+
+### Single appliance (flags / environment)
+
+Without a config file, one device can be configured directly:
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `--host` | `HOUSEVITALS_HOST` | – | IP/hostname of the Modbus TCP interface |
+| `--name` | `HOUSEVITALS_NAME` | `heatpump` | Device name |
+| `--port` | `HOUSEVITALS_PORT` | `502` | Modbus TCP port |
+| `--unit-id` | `HOUSEVITALS_UNIT_ID` | `1` | Modbus unit/slave id |
+| `--profile` | `HOUSEVITALS_PROFILE` | `iwr` | `iwr`, `isr`, `neo` or `sungrow_sh` |
+| `--zones` | `HOUSEVITALS_ZONES` | `1` | IWR only: zones to expose, e.g. `1,2` or `all` |
+| `--timeout` | `HOUSEVITALS_TIMEOUT` | `5` | Request timeout in seconds |
+| `--lang` | `HOUSEVITALS_LANG` | `en` | Default language for charts (`en`, `de`) |
+
+### Claude Code
+
+With the service running (see below), [.mcp.json](.mcp.json) connects Claude Code to it
+over HTTP, so Claude never opens its own Modbus connections:
+
+```json
+{ "mcpServers": { "housevitals": { "type": "http", "url": "http://127.0.0.1:8080/mcp" } } }
+```
+
+### Claude Desktop (stdio bridge)
+
+Claude Desktop starts local servers only. `housevitals-mcp` with `HOUSEVITALS_URL`
+bridges stdio to the running service (no Node.js needed), so Desktop shares its cache,
+history and charts. In `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "housevitals": {
+      "command": "/path/to/housevitals/.venv/bin/housevitals-mcp",
+      "env": {
+        "HOUSEVITALS_URL": "http://127.0.0.1:8080/mcp",
+        "HOUSEVITALS_CONFIG": "/path/to/housevitals/devices.json"
+      }
+    }
+  }
+}
+```
+
+If the service restarts, the bridge starts a new session and retries transparently; if
+it is down, calls return an error saying so. If the service is not reachable when the
+bridge starts, `housevitals-mcp` serves directly from `HOUSEVITALS_CONFIG` (own Modbus
+connections). Without `HOUSEVITALS_URL` it always serves directly:
+
+```bash
+claude mcp add housevitals --env HOUSEVITALS_CONFIG=/path/to/housevitals/devices.json -- /path/to/housevitals/.venv/bin/housevitals-mcp
+```
+
+## Service mode (poller, metrics, REST API, MCP over HTTP)
+
+`housevitals` is a long-running service and the **only Modbus client** for all
+appliances. It polls in the background, keeps the last values in a cache and serves
+every consumer from it:
+
+```
+Modbus TCP ◄── poller (one serialised connection per appliance) ──► cache
+                                                                      ├─► OTLP metrics ──► Prometheus
+                                                                      ├─► REST API  /api/v1/…  (OpenAPI: /docs)
+                                                                      └─► MCP       /mcp       (Streamable HTTP)
+```
+
+- **Polling groups:** `fast` (overview values + `extra_keys`, default 15 s), `slow`
+  (energy counters, 60 s), `static` (serial, firmware, device type, 1 h). Other
+  registers are read on demand through the same connection and cached for
+  `on_demand_ttl` seconds. Requests to one appliance never run in parallel;
+  `min_request_interval` adds a pause between them for slow gateways.
+- **Freshness:** every value carries `age_s`. If an appliance is unreachable, the last
+  known value is returned with `stale: true`, and its metrics stop (gaps, not flat lines).
+
+`service` options in `devices.json`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `http_host` / `http_port` | `127.0.0.1` / `8080` | Listen address for API and MCP |
+| `allowed_hosts` | `[]` | Extra host names allowed to call the API/MCP (DNS-rebinding protection) |
+| `otlp_endpoint` | – (disabled) | OTLP/HTTP metrics endpoint, e.g. `http://127.0.0.1:9090/api/v1/otlp/v1/metrics` |
+| `export_interval` | `15` | Seconds between metric exports |
+| `poll_fast` / `poll_slow` / `poll_static` | `15` / `60` / `3600` | Poll intervals in seconds |
+| `on_demand_ttl` | `10` | Cache lifetime for registers outside the poll plan |
+| `prometheus_url` | – (disabled) | Prometheus for the history tools, e.g. `http://127.0.0.1:9090` |
+| `timezone` | `Europe/Berlin` | Time zone for calendar days/months in `get_energy` |
+
+Per device: `extra_keys` (additionally polled and exported registers),
+`poll_interval` (overrides `poll_fast`), `min_request_interval`.
+
+### History (Prometheus)
+
+With `service.prometheus_url` set, three more MCP tools read the recorded history
+(only polled values are recorded; see `poll_group` in `list_registers`):
+
+| Tool | Returns | Default range |
+|------|---------|---------------|
+| `get_history` | min/max/avg/last (counters: increase) and a downsampled series per key, `max_points` ≤ 500 | last 24 h |
+| `get_energy` | kWh per local **day/week/month/year** from the lifetime counters, with house consumption, self-sufficiency (Autarkie), self-consumption rate and heat pump performance factor (JAZ), plus totals; ≤ 62 periods | 7 days / 8 weeks / 12 months |
+| `get_runtime` | hours and share per state, starts, completed run lengths of an on/off or enum value (e.g. `compressor`, `compressor_demand`); ≤ 31 days | today |
+
+Times accept ISO dates/times in local time (`2026-09-01`, `2026-09-01T06:00`),
+relative values (`24h`, `7d`, `30m`) and `today`/`yesterday`. Calendar periods use
+`service.timezone` (default `Europe/Berlin`), so days start at local midnight, also
+across DST changes. Periods that began before recording started use the first
+recorded value and are flagged `partial`.
+
+### When an appliance does not answer
+
+Each appliance has its own circuit breaker; one that is down never slows down the others.
+
+| Part | Behaviour |
+|------|-----------|
+| Detection | The first request without an answer (timeout, refused, connection lost) aborts the whole read and closes the connection; no retries per batch or register. A device that answers with a Modbus exception (e.g. illegal address) counts as reachable. |
+| Poller | While down, only the fast group is tried, after 1, 2, 4, 8 fast intervals, then every 5 min. When the device answers again, every group is refreshed at once. Outage start and end are logged once each. |
+| Requests | Never touch a device that is known to be down. Cached values are returned at once with `"stale": true` and `age_s`, plus `available: false`, `unavailable_since`, `last_success`, `last_error` and `retry_in_s`. Without any cached value: error with `retry_after_s` and a hint (REST: `503` with `Retry-After`). `get_overview`/`/api/v1/overview` over all appliances report a down appliance as an entry, never fail as a whole. |
+| Metrics | Values of a down appliance are not exported (gaps, not flat lines); `housevitals_up` becomes 0 at once. |
+| Grafana | "Now" tiles show a value only while its appliance answers (`… and on(appliance) housevitals_up == 1`), otherwise "No data"; the reachability tile turns red. |
+| `/healthz` | reports availability details per appliance. |
+
+### When Prometheus is down
+
+Live values (`get_overview`, `read_values`, REST values) never depend on Prometheus.
+History, energy statistics and charts degrade instead of hanging:
+
+| Part | Behaviour |
+|------|-----------|
+| Queries | 2 s connect / 8 s read timeout. After a failure a circuit breaker opens: every history query fails **immediately** until a back-off (10 → 20 → 40 → 60 s) has passed; the background scheduler then probes `/-/ready` once. Outage start and end are logged once each. |
+| MCP | `get_history`, `get_energy`, `get_runtime`: `{"error": …, "history_available": false, "unavailable_since": …, "retry_after_s": …, "hint": "… live values still work"}` |
+| Charts | Every image carries `generated_at` (and its data range `start`/`end`). If an image cannot be refreshed, the last one is returned with `"stale": true`, `stale_reason` and an **"Outdated – created …" badge drawn into the image**. Without a previous image `get_chart` returns the error above. |
+| REST | `503` with `Retry-After`; chart PNGs carry `Last-Modified`, `X-Chart-Generated-At` and, when outdated, `X-Chart-Stale`. |
+| Metrics | Failed OTLP exports are buffered for up to 25 min and re-sent in order once Prometheus is back (it accepts them via `out_of_order_time_window: 30m`), so short outages such as a restart or update leave no gap. Older batches are dropped and counted. |
+| `/healthz` | stays `ok`; reports `history`, `metrics_export` (buffered/dropped) and outdated charts. |
+
+### Charts
+
+`get_chart` returns a pre-rendered PNG (1000×520 px, ~20–40 KB) plus the chart's key
+figures as JSON and the image URL. Charts are drawn with matplotlib from the recorded
+history. After every fast poll a scheduler re-renders the default charts whose image
+is older than their refresh interval, so `get_chart` usually answers from memory in a
+few milliseconds; other ranges are rendered on demand (~0.1–0.3 s) and cached too. If
+Prometheus is unreachable, the last image is returned with `"stale": true`.
+
+| Chart | Content | Default | Limits | Refresh |
+|-------|---------|---------|--------|---------|
+| `energy_flow` | PV, house, battery, grid power; state of charge below | 24h | 1h–7d | 5 min |
+| `energy_daily` | daily PV, house consumption, import, feed-in (kWh) | 30d | 2d–62d | 6 h |
+| `heatpump` (per heat pump) | flow/return, hot water, outdoor temperature; compressor demand band | 24h | 1h–7d | 5 min |
+| `heatpump_spf` | performance factor per month and heat pump | 365d | 31d–1826d | 6 h |
+| `compressor_cycles` | runtime hours and starts per day and heat pump | 7d | 2d–31d | 30 min |
+
+Chart texts follow the `lang` argument (the LLM passes the user's language), default
+`lang` from the config; background rendering uses the configured language. Each
+appliance keeps a fixed color; hatched bars mark periods that are not complete yet.
+
+### REST API
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/appliances` | Appliances with poll status |
+| `GET /api/v1/overview` | Overview values of all appliances |
+| `GET /api/v1/appliances/{name}/overview` | Overview of one appliance (name or alias) |
+| `GET /api/v1/appliances/{name}/values?keys=…&category=…&search=…` | Selected values |
+| `GET /api/v1/appliances/{name}/registers` | Known data points incl. poll group |
+| `GET /api/v1/appliances/{name}/categories` | Categories |
+| `GET /api/v1/appliances/{name}/history?keys=…&start=…&end=…&max_points=…` | Recorded history |
+| `GET /api/v1/energy?period=day&start=…&appliance=…` | Energy per calendar period |
+| `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
+| `GET /api/v1/charts` | Chart catalog and cached images |
+| `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
+| `GET /healthz` | Liveness and reachability per appliance |
+
+Labels and chart texts use `?lang=de|en`, else the `Accept-Language` header, else the
+configured `lang`. Errors return `{"detail": …}` with 400 (bad request), 404 (unknown
+appliance, register or chart), 502 (appliance answered with an error) or 503
+(appliance or Prometheus unreachable).
+
+Interactive docs: <http://127.0.0.1:8080/docs>, schema: `/openapi.json`.
+
+### Metrics
+
+Every polled numeric value becomes an OpenTelemetry instrument `housevitals.<key>`
+with the attributes `appliance`, `profile` and `kind`. In Prometheus (OTLP receiver)
+the unit is appended as suffix:
+
+| Value type | Example in Prometheus |
+|------------|-----------------------|
+| Temperature (gauge) | `housevitals_flow_temperature_celsius{appliance="heatpump1"}` |
+| Power (gauge) | `housevitals_battery_power_watts{appliance="inverter"}` |
+| Lifetime energy (counter) | `housevitals_electricity_kWh_total`, `housevitals_pv_energy_kWh_total` |
+| Daily energy (gauge, resets at midnight) | `housevitals_daily_pv_energy_kWh` |
+| Enum / bool | raw code / 0–1, e.g. `housevitals_compressor`, `housevitals_battery_charging` |
+| Service | `housevitals_up`, `housevitals_poll_duration_seconds`, `housevitals_poll_errors_total` |
+| Static info | `housevitals_appliance_info{serial_number="…", device_type="SH20T", …} 1` |
+
+Counters drop a `total` token from the key (as Prometheus does), e.g.
+`electricity_total` → `housevitals_electricity_kWh_total`.
+
+Example queries:
+
+```promql
+# Seasonal performance factor (JAZ) per heat pump over the last 30 days
+increase(housevitals_heat_delivered_kWh_total[30d]) / increase(housevitals_electricity_kWh_total[30d])
+
+# PV energy per day
+increase(housevitals_pv_energy_kWh_total[1d])
+
+# Self-sufficiency (Autarkie) over the last 7 days
+1 - increase(housevitals_import_energy_kWh_total[7d])
+  / (increase(housevitals_direct_consumption_kWh_total[7d])
+     + increase(housevitals_battery_discharge_kWh_total[7d])
+     + increase(housevitals_import_energy_kWh_total[7d]))
+```
+
+### Renamed from broetje-mcp / home-modbus
+
+The project was renamed on 2026-09-27: package `housevitals`, commands `housevitals`
+(service) and `housevitals-mcp` (stdio), environment variables `HOUSEVITALS_*`, MCP
+server `housevitals`, metrics `housevitals_*` (job `housevitals`). The samples recorded
+before were exported, renamed and backfilled with `promtool tsdb
+create-blocks-from openmetrics`, so history continues under the new names. The old
+`home_modbus_*` series are no longer written; removing them needs Prometheus' admin API
+(`delete_series` with `match[]={__name__=~"home_modbus_.*"}`).
+
+### Running on macOS (launchd + Homebrew Prometheus)
+
+Prometheus 3 with OTLP receiver, 10 years retention (capped at 20 GB):
+
+```bash
+brew install prometheus
+```
+
+`/opt/homebrew/etc/prometheus.args`:
+
+```
+--config.file /opt/homebrew/etc/prometheus.yml
+--web.listen-address=127.0.0.1:9090
+--storage.tsdb.path /opt/homebrew/var/prometheus
+--web.enable-otlp-receiver
+--storage.tsdb.retention.time=10y
+--storage.tsdb.retention.size=20GB
+```
+
+`/opt/homebrew/etc/prometheus.yml` additionally contains
+`storage.tsdb.out_of_order_time_window: 30m` and promotes `service.version`. Start it:
+
+```bash
+brew services start prometheus
+```
+
+The service runs as a LaunchAgent ([deploy/local.housevitals.plist](deploy/local.housevitals.plist)),
+restarts on crashes and logs to `~/Library/Logs/housevitals.log`. The file is a template;
+install it from the project directory, filling in the project and home paths:
+
+```bash
+sed -e "s#__PROJECT_DIR__#$PWD#g" -e "s#__HOME__#$HOME#g" deploy/local.housevitals.plist > ~/Library/LaunchAgents/local.housevitals.plist
+```
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.housevitals.plist
+```
+
+Restart after config or code changes:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/local.housevitals
+```
+
+Stop and remove:
+
+```bash
+launchctl bootout gui/$(id -u)/local.housevitals
+```
+
+LaunchAgents (like `brew services`) run while the user is logged in. On an always-on
+Mac, enable automatic login and "Start up automatically after a power failure".
+
+### Grafana dashboard
+
+Grafana (Homebrew) reads its data source and the dashboard from this repository
+([deploy/grafana](deploy/grafana)), so both are versioned and restored automatically:
+
+```bash
+brew install grafana
+```
+
+The dashboard provider needs the absolute path of this checkout; create it from the
+template (from the project directory):
+
+```bash
+sed "s#__PROJECT_DIR__#$PWD#g" deploy/grafana/provisioning/dashboards/housevitals.yaml.example > deploy/grafana/provisioning/dashboards/housevitals.yaml
+```
+
+Settings changed in `/opt/homebrew/etc/grafana/grafana.ini`:
+
+| Section | Setting |
+|---------|---------|
+| `[paths]` | `provisioning = /path/to/housevitals/deploy/grafana/provisioning` |
+| `[server]` | `http_addr = 127.0.0.1` (local only) |
+| `[dashboards]` | `default_home_dashboard_path = …/deploy/grafana/dashboards/home-energy.json` |
+| `[auth.anonymous]` | `enabled = true` (read-only viewer without login, local only) |
+| `[analytics]`, `[news]` | usage reporting, update checks and news feed off |
+
+```bash
+brew services start grafana
+```
+
+Open <http://localhost:3000>. Viewing needs no login; for editing sign in as `admin`
+(initial password `admin`, Grafana asks for a new one). Grafana 13 installs the
+Prometheus data-source plugin on first start; if the data source reports "plugin not
+registered", restart Grafana once.
+
+The dashboards **Haus · Energie & Wärmepumpen** (German, home dashboard) and **Home ·
+Energy & heat pumps** (English, `home-energy-en`) are generated and link to each other.
+The German one is the source; the English one replaces only display texts via the
+table `TRANSLATIONS` (the generator fails on any untranslated text). Edit
+[tools/build_grafana_dashboard.py](tools/build_grafana_dashboard.py), then:
+
+```bash
+.venv/bin/python tools/build_grafana_dashboard.py
+```
+
+Grafana picks up the new JSON within 30 seconds. Layout (English section names; the German dashboard has the same structure):
+
+| Section | Content |
+|---------|---------|
+| Now · PV system & battery | PV, house load, battery, state of charge, grid, self-sufficiency today, today's energy, reachability |
+| Now · heat pumps | outdoor, flow and hot-water temperature, power draw, compressor, lifetime SPF |
+| History · energy flow | power flow (PV/house/battery/grid), state of charge, energy per day |
+| History · heat pumps | flow/return, hot water vs. setpoint, power, outdoor temperature, compressor and demand timelines, SPF and heat per day |
+| Details (collapsed) | PV strings, grid per phase, temperatures, refrigerant circuit, heat source, buffer, service health |
+
+"Now" tiles show the current value (only while the appliance answers), daily bars always the last 30 days; all other
+charts follow the selected time range. Each appliance and energy flow keeps one fixed
+color in every panel (WP1 blue, WP2 orange; PV yellow, house blue, battery teal,
+grid orange). Dashed lines mark return temperature, setpoints and low pressure.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_devices` | Configured appliances with type, names, aliases, connection settings and poll status |
+| `get_overview` | Most important live values; without `appliance` it reports every appliance |
+| `list_categories` | Register categories of an appliance's profile |
+| `list_registers` | Discover data points by category or search term (no device access) |
+| `read_values` | Read data points by key, category or search term |
+| `read_raw_registers` | Raw holding/input register words for diagnostics |
+
+Every tool except `list_devices` takes an optional `appliance` argument (name or alias).
+It can be omitted when only one appliance is configured or `default_device` is set.
+(It is deliberately not called `device`: remote MCP bridges use an argument of that
+name to select the target computer and strip it before it reaches the server.)
+
+Values are scaled to engineering units; enum registers return text plus the raw
+number. `null` means the device reports "not available" (e.g. sensor not fitted).
+`age_s` is the age of a value (served from the service cache).
+
+## Register profiles
+
+Profiles live in `src/housevitals/profiles/*.json` and can be edited or extended.
+
+- `iwr.json` and `isr.json` are generated from the MIT-licensed
+  [ha-broetje](https://github.com/henrywiechert/ha-broetje) Home Assistant integration
+  (based on the Brötje GTW-08 spec 7854678 and the
+  [ISR MODBM manual](https://polo.broetje.de/pdf/7715040=6=pdf_(bdr_a4_manual)=de-de_ma_modbm.pdf)).
+  Regenerate with `python tools/generate_profiles.py <path-to-ha-broetje-checkout>`.
+- `neo.json` follows the Brötje
+  [NEO-RKM manual](https://polo.broetje.de/pdf/7734937=2=pdf_(bdr_a4_manual)=de-de_ma_neo-rkm.pdf)
+  register layout (input registers 10–41 and 60–75, holding registers 100–112).
+- `sungrow_sh.json` is generated from the MIT-licensed
+  [Sungrow-SHx-Inverter-Modbus-Home-Assistant](https://github.com/mkaiser/Sungrow-SHx-Inverter-Modbus-Home-Assistant)
+  register list with `python tools/generate_sungrow_profile.py <modbus_sungrow.yaml>`
+  (needs PyYAML). Sungrow stores 32-bit values with the low word first; sign
+  conventions: battery power positive = discharging, grid power positive = import,
+  export power positive = export. Some registers (e.g. meter voltages) are not
+  supported by every model and return a per-value error.
+
+## Languages
+
+| Consumer | Language |
+|----------|----------|
+| MCP tools (read by an LLM) | Canonical English labels and state names; the LLM answers in the user's language and translates. Keeps results compact and consistent. `list_registers`/`read_values` search also matches German labels. |
+| `get_chart` images | `lang` argument (an LLM cannot translate text inside a picture) |
+| REST API | `?lang=`, `Accept-Language`, configured `lang` |
+| Grafana | one dashboard per language |
+
+Supported: `en`, `de`. To add a language, add it to `SUPPORTED` and `MESSAGES` in
+[i18n.py](src/housevitals/i18n.py) (chart texts), `label_<lang>` fields in the
+profiles (register labels) and a table in the dashboard generator.
+
+## Code structure
+
+| Module | Responsibility |
+|--------|----------------|
+| `registry.py` | Register profiles (JSON) and the poll plan (fast/slow/static) |
+| `modbus.py` | Modbus TCP client: one serialised connection per appliance, batching, decoding |
+| `hub.py` | Poller, cache and per-appliance status; the only way to the devices |
+| `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
+| `history.py` | Prometheus queries: history, calendar energy balance, runtimes |
+| `charts.py`, `chart_style.py` | Chart catalog, cache and scheduler; matplotlib look |
+| `queries.py` | Live-value selection and formatting shared by MCP and REST |
+| `server.py` | MCP tools (stdio entry point `housevitals-mcp`) |
+| `proxy.py` | stdio → HTTP bridge from `housevitals-mcp` to the running service |
+| `api.py` | REST API (FastAPI) |
+| `service.py` | Service entry point `housevitals`: wires everything into one HTTP app |
+| `context.py` | `Services`: hub, history and charts, created once per process |
+| `prometheus.py` | Prometheus HTTP client: timeouts, circuit breaker, status |
+| `config.py`, `i18n.py`, `errors.py` | Configuration and CLI, languages, error types with HTTP status |
+
+## Development
+
+```bash
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
+```
+
+The tests run against in-process Modbus TCP simulators, so no hardware is needed.

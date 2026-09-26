@@ -1,0 +1,61 @@
+{
+  "lang": "en",
+  "default_device": "house",
+  "service": {
+    "http_host": "127.0.0.1",
+    "http_port": 8080,
+    "allowed_hosts": [],
+    "otlp_endpoint": "http://127.0.0.1:9090/api/v1/otlp/v1/metrics",
+    "export_interval": 15,
+    "poll_fast": 15,
+    "poll_slow": 60,
+    "poll_static": 3600,
+    "on_demand_ttl": 10,
+    "prometheus_url": "http://127.0.0.1:9090",
+    "timezone": "Europe/Berlin"
+  },
+  "devices": [
+    {
+      "name": "house",
+      "aliases": [
+        "main",
+        "Haus",
+        "wp1"
+      ],
+      "description": "BLW NEO in the basement",
+      "host": "192.168.1.50",
+      "port": 502,
+      "unit_id": 1,
+      "profile": "neo",
+      "extra_keys": [
+        "source_inlet_temperature",
+        "high_pressure"
+      ],
+      "min_request_interval": 0.2
+    },
+    {
+      "name": "garage",
+      "aliases": [
+        "wp2"
+      ],
+      "host": "192.168.1.51",
+      "profile": "iwr",
+      "zones": [
+        1,
+        2
+      ],
+      "timeout": 5
+    },
+    {
+      "name": "inverter",
+      "aliases": [
+        "sh10rt",
+        "Wechselrichter"
+      ],
+      "host": "192.168.1.60",
+      "port": 502,
+      "unit_id": 1,
+      "profile": "sungrow_sh"
+    }
+  ]
+}

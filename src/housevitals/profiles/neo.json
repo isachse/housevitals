@@ -1,0 +1,839 @@
+{
+ "name": "neo",
+ "description": "Brötje BLW NEO (Heliotherm-based) via NEO-RKM or RS232-to-Modbus-TCP interface",
+ "source": "Register layout per Brötje NEO-RKM manual; decoding cross-checked against community integrations",
+ "registers": [
+  {
+   "key": "outdoor_temperature",
+   "address": 10,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Outdoor temperature",
+   "label_de": "Außentemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "dhw_temperature",
+   "address": 11,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "DHW temperature",
+   "label_de": "Brauchwassertemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "flow_temperature",
+   "address": 12,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Flow temperature",
+   "label_de": "Vorlauftemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "return_temperature",
+   "address": 13,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Return temperature",
+   "label_de": "Rücklauftemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "buffer_temperature",
+   "address": 14,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Buffer tank temperature",
+   "label_de": "Pufferspeichertemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "source_inlet_temperature",
+   "address": 15,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Heat source inlet temperature",
+   "label_de": "EQ Eintritt",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "source_outlet_temperature",
+   "address": 16,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Heat source outlet temperature",
+   "label_de": "EQ Austritt",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "suction_gas_temperature",
+   "address": 17,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Suction gas temperature",
+   "label_de": "Sauggastemperatur",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "evaporation_temperature",
+   "address": 18,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Evaporation temperature",
+   "label_de": "Verdampfungstemperatur",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "condensation_temperature",
+   "address": 19,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Condensation temperature",
+   "label_de": "Kondensationstemperatur",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "hot_gas_temperature",
+   "address": 20,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Hot gas temperature",
+   "label_de": "Heißgastemperatur",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "low_pressure",
+   "address": 21,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "bar",
+   "label": "Low pressure",
+   "label_de": "Niederdruck",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false
+  },
+  {
+   "key": "high_pressure",
+   "address": 22,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "bar",
+   "label": "High pressure",
+   "label_de": "Hochdruck",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false
+  },
+  {
+   "key": "heating_circuit_pump",
+   "address": 23,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Heating circuit pump",
+   "label_de": "Heizkreispumpe",
+   "category": "status",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "buffer_charging_pump",
+   "address": 24,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Buffer charging pump",
+   "label_de": "Pufferladepumpe",
+   "category": "status",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "compressor",
+   "address": 25,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Compressor",
+   "label_de": "Verdichter",
+   "category": "status",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "fault",
+   "address": 26,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Fault",
+   "label_de": "Störung",
+   "category": "status",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "defrost_valve",
+   "address": 27,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Four-way valve (defrost, air units)",
+   "label_de": "Vierwegeventil Luft (Abtauen)",
+   "category": "status",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "defrost"
+   }
+  },
+  {
+   "key": "flow_rate",
+   "address": 28,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "l/min",
+   "label": "Heat meter flow rate",
+   "label_de": "WMZ Durchfluss",
+   "category": "status",
+   "summary": false,
+   "writable": false
+  },
+  {
+   "key": "compressor_speed_setpoint",
+   "address": 29,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 1,
+   "unit": "‰",
+   "label": "Compressor speed setpoint",
+   "label_de": "n-Soll Verdichter",
+   "category": "status",
+   "summary": false,
+   "writable": false
+  },
+  {
+   "key": "cop",
+   "address": 30,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "label": "COP",
+   "label_de": "COP",
+   "category": "status",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "fresh_water_temperature",
+   "address": 31,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Fresh water temperature",
+   "label_de": "Frischwassertemperatur",
+   "category": "temperatures",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "utility_lock",
+   "address": 32,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Utility lock (EVU-Sperre)",
+   "label_de": "EVU-Sperre",
+   "category": "status",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "locked",
+    "*": "released"
+   }
+  },
+  {
+   "key": "outdoor_temperature_delayed",
+   "address": 33,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Outdoor temperature (delayed)",
+   "label_de": "Außentemperatur verzögert",
+   "category": "temperatures",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "hkr_setpoint",
+   "address": 34,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Heating circuit (HKR) target temperature",
+   "label_de": "HKR Solltemperatur",
+   "category": "temperatures",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr1_setpoint",
+   "address": 35,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 1 target temperature",
+   "label_de": "MKR1 Solltemperatur",
+   "category": "temperatures",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr2_setpoint",
+   "address": 36,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 2 target temperature",
+   "label_de": "MKR2 Solltemperatur",
+   "category": "temperatures",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "source_fan",
+   "address": 37,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Heat source fan",
+   "label_de": "EQ Ventilator",
+   "category": "status",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "dhw_priority",
+   "address": 38,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "DHW priority",
+   "label_de": "WW Vorrang",
+   "category": "status",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "passive_cooling_valve",
+   "address": 39,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Passive cooling diverter valve",
+   "label_de": "Kühlen UMV passiv",
+   "category": "status",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "expansion_valve",
+   "address": 40,
+   "register_type": "input",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "%",
+   "label": "Expansion valve opening",
+   "label_de": "Expansionsventil",
+   "category": "refrigerant",
+   "summary": false,
+   "writable": false
+  },
+  {
+   "key": "compressor_demand",
+   "address": 41,
+   "register_type": "input",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Compressor demand",
+   "label_de": "Verdichteranforderung",
+   "category": "status",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "none",
+    "10": "cooling",
+    "20": "heating",
+    "30": "dhw",
+    "40": "external demand"
+   }
+  },
+  {
+   "key": "heat_delivered_heating",
+   "address": 60,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Heat delivered – heating",
+   "label_de": "WMZ Heizung",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "electricity_heating",
+   "address": 62,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Electricity consumed – heating",
+   "label_de": "Stromzähler Heizung",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "heat_delivered_dhw",
+   "address": 64,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Heat delivered – DHW",
+   "label_de": "WMZ Brauchwasser",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "electricity_dhw",
+   "address": 66,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Electricity consumed – DHW",
+   "label_de": "Stromzähler Brauchwasser",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "electricity_total",
+   "address": 68,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Electricity consumed – total",
+   "label_de": "Stromzähler Gesamt",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "electrical_power",
+   "address": 70,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "W",
+   "label": "Current electrical power",
+   "label_de": "Stromzähler Leistung",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "heat_delivered_total",
+   "address": 72,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 1,
+   "unit": "kWh",
+   "label": "Heat delivered – total",
+   "label_de": "WMZ Gesamt",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "thermal_power",
+   "address": 74,
+   "register_type": "input",
+   "data_type": "uint32",
+   "count": 2,
+   "scale": 0.1,
+   "unit": "kW",
+   "label": "Current thermal power",
+   "label_de": "WMZ Leistung",
+   "category": "energy",
+   "summary": true,
+   "writable": false
+  },
+  {
+   "key": "operating_mode",
+   "address": 100,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Operating mode",
+   "label_de": "Betriebsart",
+   "category": "settings",
+   "summary": true,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "1": "auto",
+    "2": "cooling",
+    "3": "summer",
+    "4": "continuous",
+    "5": "setback",
+    "6": "holiday",
+    "7": "party"
+   }
+  },
+  {
+   "key": "room_setpoint",
+   "address": 101,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Room temperature setpoint",
+   "label_de": "Raum Solltemperatur",
+   "category": "settings",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "return_setpoint",
+   "address": 102,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Return temperature setpoint",
+   "label_de": "RL Solltemperatur",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "return_setpoint_active",
+   "address": 103,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Return setpoint override active",
+   "label_de": "RL Soll aktiv",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "cooling_return_setpoint",
+   "address": 104,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Cooling return temperature setpoint",
+   "label_de": "RLT Kühlen",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "dhw_setpoint_max",
+   "address": 105,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "DHW setpoint (max / normal)",
+   "label_de": "WW Normaltemperatur (max)",
+   "category": "settings",
+   "summary": true,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "dhw_setpoint_min",
+   "address": 106,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "DHW setpoint (min)",
+   "label_de": "WW Minimaltemperatur",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr1_operating_mode",
+   "address": 107,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Mixing circuit 1 operating mode",
+   "label_de": "MKR1 Betriebsart",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "1": "auto",
+    "2": "cooling",
+    "3": "summer",
+    "4": "continuous",
+    "5": "setback",
+    "6": "holiday",
+    "7": "party"
+   }
+  },
+  {
+   "key": "mkr2_operating_mode",
+   "address": 112,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Mixing circuit 2 operating mode",
+   "label_de": "MKR2 Betriebsart",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "1": "auto",
+    "2": "cooling",
+    "3": "summer",
+    "4": "continuous",
+    "5": "setback",
+    "6": "holiday",
+    "7": "party"
+   }
+  }
+ ]
+}
