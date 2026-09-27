@@ -1,4 +1,7 @@
-"""Read-only Modbus TCP access (one serialised connection per appliance)."""
+"""Modbus TCP access (one serialised connection per appliance).
+
+Reads are the normal case; single-register writes exist only for the override
+manager (see overrides.py), which enforces the allow-list and limits."""
 
 from __future__ import annotations
 
@@ -187,6 +190,32 @@ class ModbusClient:
         async with self._lock:
             try:
                 return await self._read_words(register_type, address, count)
+            except ModbusConnectError:
+                raise
+            except _NO_RESPONSE as err:
+                raise await self._no_response(err) from err
+            except ModbusException as err:
+                raise ModbusReadError(str(err) or type(err).__name__) from err
+
+    async def write_register(self, address: int, raw: int) -> list[int]:
+        """Write one holding register and read it back (same lock, no request in between).
+
+        Returns the words read back, so the caller can verify the device accepted the value.
+        """
+        word = raw & 0xFFFF  # int16 values are sent as two's complement
+        async with self._lock:
+            try:
+                client = await self._ensure_connected()
+                if self.min_request_interval:
+                    wait = self._last_request + self.min_request_interval - time.monotonic()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                self.request_count += 1
+                self._last_request = time.monotonic()
+                rr = await client.write_register(address, word, device_id=self.unit_id)
+                if rr.isError():
+                    raise ModbusReadError(f"Device rejected write to holding register {address}: {rr}")
+                return await self._read_words("holding", address, 1)
             except ModbusConnectError:
                 raise
             except _NO_RESPONSE as err:

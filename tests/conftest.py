@@ -23,7 +23,7 @@ async def _start_neo(outdoor_raw=0x10000 - 52, port=None):
     ir.update({10: outdoor_raw, 12: 345, 13: 0x10000 - 500, 25: 1, 30: 42, 41: 20,
                68: 0, 69: 1234})
     hr = {a: 0 for a in range(100, 127)}
-    hr.update({100: 1, 101: 215})
+    hr.update({100: 1, 101: 215, 105: 500, 106: 420})  # DHW setpoints 50 / 42 °C
     ctx = ModbusServerContext(devices=ModbusDeviceContext(
         ir=ModbusSparseDataBlock(ir),
         hr=ModbusSparseDataBlock(hr),

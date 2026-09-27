@@ -364,7 +364,7 @@ def main(argv: list[str] | None = None) -> None:
             return
         logging.getLogger(__name__).warning(
             "housevitals service not reachable at %s; serving directly instead", args.url)
-    build_server(Services.create(parse_config(rest))).run("stdio")
+    build_server(Services.create(parse_config(rest), control=False)).run("stdio")
 
 
 if __name__ == "__main__":
