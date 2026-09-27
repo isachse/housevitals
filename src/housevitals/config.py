@@ -37,6 +37,43 @@ def parse_zones(value: Any) -> list[int]:
     return sorted({int(z) for z in value})
 
 
+# Upper bound for one override lease; a lease can never outlive this.
+MAX_OVERRIDE_DURATION_S = 24 * 3600
+
+
+@dataclass
+class OverrideRule:
+    """Allow-list entry: a holding register that may be overridden, and its limits."""
+
+    min: float | None = None  # bounds for numeric registers (scaled value)
+    max: float | None = None
+    values: dict[str, int] | None = None  # enum registers: allowed labels -> raw codes
+    max_duration_s: float = 6 * 3600
+    max_writes_per_day: int = 6  # applying overrides; restores are never refused
+
+    @classmethod
+    def from_dict(cls, where: str, data: dict[str, Any]) -> OverrideRule:
+        unknown = set(data) - {"min", "max", "values", "max_duration_s", "max_writes_per_day"}
+        if unknown:
+            raise ConfigError(f"{where}: unknown option(s): {', '.join(sorted(unknown))}")
+        rule = cls(
+            min=float(data["min"]) if data.get("min") is not None else None,
+            max=float(data["max"]) if data.get("max") is not None else None,
+            values={str(k): int(v) for k, v in data["values"].items()} if data.get("values") else None,
+            max_duration_s=float(data.get("max_duration_s", 6 * 3600)),
+            max_writes_per_day=int(data.get("max_writes_per_day", 6)),
+        )
+        if rule.values is None and (rule.min is None or rule.max is None):
+            raise ConfigError(f"{where}: needs 'min' and 'max' (numeric) or 'values' (enum)")
+        if rule.min is not None and rule.max is not None and rule.min > rule.max:
+            raise ConfigError(f"{where}: 'min' is greater than 'max'")
+        if not 0 < rule.max_duration_s <= MAX_OVERRIDE_DURATION_S:
+            raise ConfigError(f"{where}: max_duration_s must be between 1 and {MAX_OVERRIDE_DURATION_S}")
+        if rule.max_writes_per_day < 1:
+            raise ConfigError(f"{where}: max_writes_per_day must be at least 1")
+        return rule
+
+
 @dataclass
 class DeviceConfig:
     name: str
@@ -52,12 +89,15 @@ class DeviceConfig:
     poll_interval: float | None = None  # overrides service.poll_fast for this appliance
     extra_keys: list[str] = field(default_factory=list)  # additionally polled/exported
     min_request_interval: float = 0.0
+    # Registers that may be overridden (written) through the control API, by key.
+    overrides: dict[str, OverrideRule] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceConfig:
         unknown = set(data) - {
             "name", "host", "port", "unit_id", "profile", "zones", "timeout",
             "aliases", "description", "poll_interval", "extra_keys", "min_request_interval",
+            "overrides",
         }
         if unknown:
             raise ConfigError(f"Unknown device option(s): {', '.join(sorted(unknown))}")
@@ -86,6 +126,10 @@ class DeviceConfig:
             poll_interval=float(data["poll_interval"]) if data.get("poll_interval") else None,
             extra_keys=[str(k) for k in data.get("extra_keys", [])],
             min_request_interval=float(data.get("min_request_interval", 0.0)),
+            overrides={
+                str(key): OverrideRule.from_dict(f"Device '{data['name']}', override '{key}'", rule)
+                for key, rule in (data.get("overrides") or {}).items()
+            },
         )
 
 
@@ -104,6 +148,11 @@ class ServiceConfig:
     on_demand_ttl: float = 10.0
     prometheus_url: str | None = None  # enables the history tools, e.g. http://127.0.0.1:9090
     timezone: str = "Europe/Berlin"  # calendar days/months for energy statistics
+    # Control API (overrides). Writing needs a bearer token, read from this file or from
+    # HOUSEVITALS_CONTROL_TOKEN; without one the control API only lists overrides.
+    control_token_file: str | None = None
+    # Active overrides survive restarts here (outside the repository by default).
+    override_state_file: str = "~/.local/state/housevitals/overrides.json"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ServiceConfig:

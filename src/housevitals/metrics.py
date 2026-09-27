@@ -32,6 +32,7 @@ from opentelemetry.sdk.resources import Resource
 
 from . import __version__
 from .hub import Appliance, Hub
+from .overrides import OverrideManager
 from .registry import Register
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,7 +154,7 @@ def instrument_plan(hub: Hub) -> list[Instrument]:
     return plan
 
 
-def register_instruments(meter: Meter, hub: Hub) -> list[str]:
+def register_instruments(meter: Meter, hub: Hub, overrides: OverrideManager | None = None) -> list[str]:
     """Create observable instruments for every polled register. Returns metric names."""
     names: list[str] = []
     for inst in instrument_plan(hub):
@@ -180,7 +181,18 @@ def register_instruments(meter: Meter, hub: Hub) -> list[str]:
         f"{PREFIX}.appliance.info", [lambda o: _info(hub)], unit="",
         description="Static appliance information (serial, firmware, type) as attributes",
     )
-    return names + [f"{PREFIX}.{n}" for n in ("up", "poll.duration", "poll.errors", "appliance.info")]
+    names += [f"{PREFIX}.{n}" for n in ("up", "poll.duration", "poll.errors", "appliance.info")]
+    if overrides is not None:
+        meter.create_observable_gauge(
+            f"{PREFIX}.override.active", [lambda o: _override_active(overrides)], unit="",
+            description="1 per active override (appliance, key, owner); 0 while being restored",
+        )
+        meter.create_observable_counter(
+            f"{PREFIX}.override.writes", [lambda o: _override_writes(overrides)], unit="",
+            description="Register writes by the override manager (apply and restore)",
+        )
+        names += [f"{PREFIX}.override.active", f"{PREFIX}.override.writes"]
+    return names
 
 
 def _make_callback(series: list[_Series]):
@@ -226,6 +238,19 @@ def _info(hub: Hub) -> Iterable[Observation]:
             if isinstance(value, (str, int, float)) and not isinstance(value, bool):
                 attrs[reg.key] = str(value)
         yield Observation(1.0, attrs)
+
+
+def _override_active(overrides: OverrideManager) -> Iterable[Observation]:
+    for lease in list(overrides.leases.values()):
+        app = overrides.hub.appliances.get(lease.appliance)
+        attrs = _attrs(app) if app else {"appliance": lease.appliance}
+        yield Observation(0.0 if lease.restoring else 1.0,
+                          {**attrs, "key": lease.key, "owner": lease.owner})
+
+
+def _override_writes(overrides: OverrideManager) -> Iterable[Observation]:
+    for (name, key), app in ((k, overrides.hub.appliances[k[0]]) for k in overrides.rules):
+        yield Observation(overrides.writes_total.get((name, key), 0), {**_attrs(app), "key": key})
 
 
 class BufferingExporter(MetricExporter):
@@ -291,7 +316,8 @@ class BufferingExporter(MetricExporter):
         self._inner.shutdown(timeout_millis=timeout_millis)
 
 
-def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None
+def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None,
+                  overrides: OverrideManager | None = None,
                   ) -> tuple[MeterProvider | None, BufferingExporter | None]:
     """Create a MeterProvider exporting all polled values.
 
@@ -317,5 +343,5 @@ def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None
         "service.instance.id": socket.gethostname(),
     })
     provider = MeterProvider(resource=resource, metric_readers=readers)
-    register_instruments(provider.get_meter("housevitals", __version__), hub)
+    register_instruments(provider.get_meter("housevitals", __version__), hub, overrides)
     return provider, exporter

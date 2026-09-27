@@ -19,7 +19,7 @@ from typing import Any
 
 from .config import DeviceConfig, ServerConfig, ServiceConfig
 from .errors import UnavailableError
-from .modbus import ModbusClient, ModbusConnectError, ModbusReadError
+from .modbus import ModbusClient, ModbusConnectError, ModbusReadError, decode
 from .registry import POLL_GROUPS, Profile, Register, load_profile, poll_group
 
 _LOGGER = logging.getLogger(__name__)
@@ -298,6 +298,36 @@ class Appliance:
             raise
         self._mark_up()
         return words
+
+    async def read_now(self, reg: Register) -> dict[str, Any]:
+        """Read one register from the device, bypassing the cache (fails fast while down).
+        The result always carries "raw"."""
+        words = await self.read_raw(reg.register_type, reg.address, reg.count)
+        value, raw = decode(reg, words)
+        self._store({reg.key: self.client._result(reg, words)}, time.time())
+        return {"value": value, "raw": raw}
+
+    async def write(self, reg: Register, raw: int) -> dict[str, Any]:
+        """Write one holding register through the serialised client and verify it by
+        reading it back. Only the override manager calls this."""
+        if self.fail_fast():
+            raise self.unavailable_error()
+        try:
+            words = await self.client.write_register(reg.address, raw)
+        except ModbusConnectError as err:
+            self._mark_down(str(err))
+            raise self.unavailable_error() from err
+        except ModbusReadError:
+            self._mark_up()
+            raise
+        self._mark_up()
+        value, read_back = decode(reg, words)
+        self._store({reg.key: self.client._result(reg, words)}, time.time())
+        if read_back != raw:
+            raise ModbusReadError(
+                f"{self.name}: {reg.key} reads back {read_back} after writing {raw}; "
+                "the device did not accept the value")
+        return {"value": value, "raw": read_back}
 
     def poll_status(self) -> dict[str, Any]:
         now = time.time()

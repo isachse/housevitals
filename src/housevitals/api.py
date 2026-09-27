@@ -1,4 +1,7 @@
-"""Read-only REST API (OpenAPI 3) on top of the shared services.
+"""REST API (OpenAPI 3) on top of the shared services.
+
+Everything is read-only except the control API (/overrides), which needs a bearer
+token and only accepts allow-listed registers (see overrides.py).
 
 Labels and chart texts are localized: `?lang=de` or the Accept-Language header,
 defaulting to the configured language. Errors are HomeModbusError subclasses whose
@@ -6,16 +9,25 @@ defaulting to the configured language. Errors are HomeModbusError subclasses who
 """
 
 # No "from __future__ import annotations": FastAPI must see the locally defined Lang type.
+import hmac
 from email.utils import formatdate
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import i18n, queries
 from .context import Services
 from .errors import HomeModbusError
+
+
+class ControlDisabledError(HomeModbusError):
+    status = 403
+
+
+class UnauthorizedError(HomeModbusError):
+    status = 401
 
 
 class Value(BaseModel):
@@ -83,7 +95,17 @@ def install_error_handler(app: FastAPI) -> None:
                             headers=headers)
 
 
-def build_router(services: Services) -> APIRouter:
+class OverrideRequest(BaseModel):
+    value: float | int | str = Field(description="Scaled value (e.g. 50 for 50 °C) or enum label")
+    owner: str = Field(description="Who holds the override, e.g. housereflex/dhw_pv_boost",
+                       pattern=r"^[A-Za-z0-9_.:/-]{1,64}$")
+    until: str | None = Field(None, description="End: ISO date/time (local unless an offset "
+                              "is given) or HH:MM today. Exactly one of until/duration_s.")
+    duration_s: float | None = Field(None, gt=0, description="Duration in seconds")
+    reason: str | None = Field(None, max_length=200, description="Free text for the log")
+
+
+def build_router(services: Services, control_token: str | None = None) -> APIRouter:
     hub = services.hub
     router = APIRouter()
 
@@ -140,7 +162,52 @@ def build_router(services: Services) -> APIRouter:
         _history_routes(router, services, Lang)
     if services.charts is not None:
         _chart_routes(router, services, Lang)
+    if services.overrides is not None:
+        _override_routes(router, services, control_token)
     return router
+
+
+def _override_routes(router: APIRouter, services: Services, token: str | None) -> None:
+    overrides = services.overrides
+
+    def authorize(authorization: Annotated[str | None, Header()] = None) -> None:
+        if token is None:
+            raise ControlDisabledError(
+                "The control API is disabled: no control token is configured "
+                "(HOUSEVITALS_CONTROL_TOKEN or service.control_token_file)")
+        scheme, _, given = (authorization or "").partition(" ")
+        if scheme.lower() != "bearer" or not hmac.compare_digest(given.strip().encode(), token.encode()):
+            raise UnauthorizedError("Missing or wrong bearer token")
+
+    @router.get("/overrides", tags=["control"])
+    def list_overrides() -> dict[str, Any]:
+        """Active overrides of all appliances and what may be overridden."""
+        return overrides.status()
+
+    @router.get("/appliances/{name}/overrides", tags=["control"])
+    def appliance_overrides(name: str) -> dict[str, Any]:
+        """Active overrides of one appliance and what may be overridden."""
+        return overrides.status(name)
+
+    @router.put("/appliances/{name}/overrides/{key}", tags=["control"],
+                dependencies=[Depends(authorize)])
+    async def put_override(name: str, key: str, request: OverrideRequest = Body()) -> dict[str, Any]:
+        """Hold an allow-listed register at a value until a given time. The previous value
+        is restored when the override ends. Repeating the call (same owner) changes the
+        value or end without a new baseline; nothing is written if the device already
+        has the value. Errors: 404 not allow-listed, 409 held by another owner,
+        429 writes for today used up, 503 appliance unreachable."""
+        return await overrides.apply(name, key, request.value, request.owner, until=request.until,
+                                     duration_s=request.duration_s, reason=request.reason)
+
+    @router.delete("/appliances/{name}/overrides/{key}", tags=["control"],
+                   dependencies=[Depends(authorize)])
+    async def delete_override(name: str, key: str,
+                              owner: str = Query(description="Owner that set the override")) -> dict[str, Any]:
+        """End an override now and restore the previous value (unless it was changed
+        on the device in the meantime). If the appliance is unreachable, the restore is
+        retried in the background (state "restoring")."""
+        return await overrides.release(name, key, owner)
 
 
 def _history_routes(router: APIRouter, services: Services, Lang) -> None:
