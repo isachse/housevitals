@@ -73,6 +73,7 @@ class Appliance:
     last_success: float | None = None  # wall clock of the last answered request
     failures: int = 0  # consecutive failed attempts while down
     retry_at: float = 0.0  # monotonic; before this, requests fail fast
+    written_at: dict[str, float] = field(default_factory=dict)  # key -> wall clock of last write
 
     @classmethod
     def create(cls, config: DeviceConfig, service: ServiceConfig) -> Appliance:
@@ -168,12 +169,17 @@ class Appliance:
         return ApplianceUnavailableError(f"{self.name} is not reachable: {self.last_error}",
                                          details=details, retry_after=max(1.0, self.retry_in()))
 
-    def _store(self, results: dict[str, dict[str, Any]], ts: float) -> set[str]:
+    def _store(self, results: dict[str, dict[str, Any]], ts: float,
+               started: float | None = None) -> set[str]:
         """Cache read results. A failed register keeps its last good value (which then
-        ages and is reported as stale) instead of being overwritten with null.
+        ages and is reported as stale) instead of being overwritten with null. A read
+        that started before the register was last written is outdated and dropped, so
+        a poll that overlaps an override cannot bring back the previous value.
         Returns the keys whose read failed."""
         failed = set()
         for key, data in results.items():
+            if started is not None and self.written_at.get(key, 0.0) >= started:
+                continue
             if "error" in data:
                 failed.add(key)
                 previous = self.cache.get(key)
@@ -186,7 +192,7 @@ class Appliance:
         regs = self.groups[group]
         status = self.status[group]
         started = time.monotonic()
-        status.last_attempt = time.time()
+        status.last_attempt = read_started = time.time()
         try:
             results = await self.client.read(regs)
         except ModbusReadError as err:
@@ -198,7 +204,7 @@ class Appliance:
             return
         finally:
             status.duration = time.monotonic() - started
-        self._store(results, time.time())
+        self._store(results, time.time(), read_started)
         status.last_success = time.time()
         status.last_error = None
         self._mark_up()
@@ -247,8 +253,9 @@ class Appliance:
             error, stale_keys = self.last_error, {r.key for r in missing}
         elif missing:
             try:
+                read_started = time.time()
                 results = await self.client.read(missing)
-                stale_keys = self._store(results, time.time())
+                stale_keys = self._store(results, time.time(), read_started)
                 self._mark_up()
             except ModbusReadError as err:
                 error = str(err)
@@ -302,9 +309,10 @@ class Appliance:
     async def read_now(self, reg: Register) -> dict[str, Any]:
         """Read one register from the device, bypassing the cache (fails fast while down).
         The result always carries "raw"."""
+        read_started = time.time()
         words = await self.read_raw(reg.register_type, reg.address, reg.count)
         value, raw = decode(reg, words)
-        self._store({reg.key: self.client._result(reg, words)}, time.time())
+        self._store({reg.key: self.client._result(reg, words)}, time.time(), read_started)
         return {"value": value, "raw": raw}
 
     async def write(self, reg: Register, raw: int) -> dict[str, Any]:
@@ -321,6 +329,7 @@ class Appliance:
             self._mark_up()
             raise
         self._mark_up()
+        self.written_at[reg.key] = time.time()
         value, read_back = decode(reg, words)
         self._store({reg.key: self.client._result(reg, words)}, time.time())
         if read_back != raw:
