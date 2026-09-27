@@ -285,3 +285,25 @@ async def test_no_allow_list_no_control_api(neo_device):
     async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
         assert (await client.get("/api/v1/overrides")).status_code == 404
     await services.close()
+
+
+async def test_poll_overlapping_a_write_does_not_bring_back_the_old_value(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    app = hub.get("hp")
+    reg = app.profile.registers["dhw_setpoint_min"]
+    app.groups["fast"].append(reg)  # polled, as with extra_keys
+    original = app.client.read
+
+    async def slow_read(regs):
+        results = await original(regs)  # reads 42 ...
+        await asyncio.sleep(0.3)  # ... and stores it only after the write below
+        return results
+
+    app.client.read = slow_read
+    poll = asyncio.create_task(app.poll("fast"))
+    await asyncio.sleep(0.1)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=60)
+    await poll
+    assert app.cache["dhw_setpoint_min"].data["value"] == 50
+    assert app.cache["flow_temperature"].data["value"] == 34.5  # other values still stored
+    await hub.stop()
