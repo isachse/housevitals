@@ -12,7 +12,9 @@
     "poll_static": 3600,
     "on_demand_ttl": 10,
     "prometheus_url": "http://127.0.0.1:9090",
-    "timezone": "Europe/Berlin"
+    "timezone": "Europe/Berlin",
+    "control_token_file": "~/.config/housevitals/control.token",
+    "override_state_file": "~/.local/state/housevitals/overrides.json"
   },
   "devices": [
     {
@@ -31,7 +33,15 @@
         "source_inlet_temperature",
         "high_pressure"
       ],
-      "min_request_interval": 0.2
+      "min_request_interval": 0.2,
+      "overrides": {
+        "dhw_setpoint_min": {
+          "min": 40,
+          "max": 55,
+          "max_duration_s": 21600,
+          "max_writes_per_day": 6
+        }
+      }
     },
     {
       "name": "garage",

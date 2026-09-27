@@ -13,7 +13,7 @@ It is a data layer between home hardware and the applications that need its data
 dashboards, scripts, automations and AI assistants read one consistent,
 manufacturer-independent representation instead of each integrating every device.
 
-**Supported hardware** (read-only, Modbus TCP on the local network):
+**Supported hardware** (Modbus TCP on the local network):
 
 | Device | Profiles |
 |--------|----------|
@@ -21,14 +21,17 @@ manufacturer-independent representation instead of each integrating every device
 | Sungrow SH hybrid inverters, incl. battery and grid meter | `sungrow_sh` |
 
 Further devices (wallboxes, smart meters, other heat pumps or inverters) can be added
-as register profiles. The service never writes to a device.
+as register profiles. The service reads; it writes to a device only through
+[overrides](#control-api-overrides): setpoints you allow-list, within bounds, for a
+limited time, restored afterwards. Without an allow-list it never writes.
 
 ## Architecture
 
 ```text
- Heat pumps, inverter/battery/meter  (Modbus TCP, read-only)
-                │
-                ▼
+ Heat pumps, inverter/battery/meter  (Modbus TCP)
+                │  ▲
+                │  └── Overrides: allow-listed, bounded, time-limited ◄── Control API ◄── automations
+                ▼      (same serialized connection, restored afterwards)                (e.g. housereflex)
  Poller: one serialized connection per device, poll plan fast / slow / static
                 │
                 ▼
@@ -44,14 +47,18 @@ as register profiles. The service never writes to a device.
 Each device-specific register (scaling, units, enum codes, invalid values) is
 normalized into named data points such as `flow_temperature` or `battery_soc`. The
 service is the only process talking to the hardware: live values come from its cache,
-so any number of consumers never cause additional device traffic. Polled values are
+so any number of consumers never cause additional device traffic. Automations that
+act on the data (e.g. [housereflex](https://github.com/isachse/housereflex), which
+turns PV surplus into hot water) do not write to devices themselves either: they ask
+the service for an override, which it checks, writes through the same connection and
+undoes when it ends. Polled values are
 exported with the OpenTelemetry SDK over OTLP directly to Prometheus' OTLP receiver
 (no collector needed); Prometheus stores the time series.
 
 The data is available through:
 
 * **Prometheus**: metrics `housevitals_*` for PromQL, Grafana and other tooling
-* **REST API**: live values, history, energy balances and charts as JSON/PNG with an OpenAPI description
+* **REST API**: live values, history, energy balances and charts as JSON/PNG with an OpenAPI description, plus the token-protected control API for overrides
 * **MCP**: the same data as tools for AI applications and agents (Claude and other MCP clients)
 * **Charts**: pre-rendered PNG charts via REST and MCP, plus German and English Grafana dashboards
 
@@ -79,7 +86,8 @@ MCP is an additional interface to the same data, next to REST and Prometheus. An
 client can read live values, query history and energy balances, and get charts, and
 combine them with its other tools and context, without a separate integration per
 device. Tool results use canonical English identifiers; the AI answers in the user's
-language, and chart images are rendered in the requested language.
+language, and chart images are rendered in the requested language. MCP is read-only:
+overrides are not available as MCP tools.
 
 ## Design goals
 
@@ -90,6 +98,7 @@ language, and chart images are rendered in the requested language.
 * Machine- and human-readable data, in English and German
 * Access for conventional applications and AI systems alike
 * Robust operation: device or Prometheus outages degrade gracefully instead of blocking
+* Safe control: writes only allow-listed setpoints, bounded and time-limited, restored automatically
 
 The goal is a common data layer for residential hardware that does not tie its users
 to a particular manufacturer's app or dashboard.
@@ -151,6 +160,7 @@ List your heat pumps and inverters in a JSON file and point the server at it wit
 | `zones` | `[1]` | IWR only: zones to expose, e.g. `[1, 2]` or `"all"` |
 | `timeout` | `5` | Request timeout in seconds |
 | `description` | – | Free text shown by `list_devices` |
+| `overrides` | `{}` | Registers that may be overridden through the control API, with limits (see [Control API](#control-api-overrides)) |
 
 Top-level options: `lang` (default language for people: REST API labels and charts;
 see [Languages](#languages)) and `default_device` (name or alias used when a tool call
@@ -217,9 +227,10 @@ every consumer from it:
 
 ```
 Modbus TCP ◄── poller (one serialised connection per appliance) ──► cache
-                                                                      ├─► OTLP metrics ──► Prometheus
-                                                                      ├─► REST API  /api/v1/…  (OpenAPI: /docs)
-                                                                      └─► MCP       /mcp       (Streamable HTTP)
+    ▲                                                                 ├─► OTLP metrics ──► Prometheus
+    │                                                                 ├─► REST API  /api/v1/…  (OpenAPI: /docs)
+    │                                                                 └─► MCP       /mcp       (Streamable HTTP)
+    └── overrides (allow-list, leases, restore) ◄── control API  PUT/DELETE /api/v1/…/overrides/{key}  (bearer token)
 ```
 
 - **Polling groups:** `fast` (overview values + `extra_keys`, default 15 s), `slow`
@@ -241,7 +252,9 @@ Modbus TCP ◄── poller (one serialised connection per appliance) ──► 
 | `poll_fast` / `poll_slow` / `poll_static` | `15` / `60` / `3600` | Poll intervals in seconds |
 | `on_demand_ttl` | `10` | Cache lifetime for registers outside the poll plan |
 | `prometheus_url` | – (disabled) | Prometheus for the history tools, e.g. `http://127.0.0.1:9090` |
-| `timezone` | `Europe/Berlin` | Time zone for calendar days/months in `get_energy` |
+| `timezone` | `Europe/Berlin` | Time zone for calendar days/months in `get_energy` and the daily write budget of overrides |
+| `control_token_file` | – | File with the bearer token for writing overrides (or env `HOUSEVITALS_CONTROL_TOKEN`); without a token the control API is read-only |
+| `override_state_file` | `~/.local/state/housevitals/overrides.json` | Active overrides and today's write counts, kept across restarts |
 
 Per device: `extra_keys` (additionally polled and exported registers),
 `poll_interval` (overrides `poll_fast`), `min_request_interval`.
@@ -326,7 +339,11 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
 | `GET /api/v1/charts` | Chart catalog and cached images |
 | `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
-| `GET /healthz` | Liveness and reachability per appliance |
+| `GET /api/v1/overrides` | Active overrides and what may be overridden (all appliances) |
+| `GET /api/v1/appliances/{name}/overrides` | The same for one appliance |
+| `PUT /api/v1/appliances/{name}/overrides/{key}` | Set or extend an override (bearer token) |
+| `DELETE /api/v1/appliances/{name}/overrides/{key}?owner=…` | End an override now and restore the previous value (bearer token) |
+| `GET /healthz` | Liveness, reachability per appliance, active overrides |
 
 Labels and chart texts use `?lang=de|en`, else the `Accept-Language` header, else the
 configured `lang`. Errors return `{"detail": …}` with 400 (bad request), 404 (unknown
@@ -334,6 +351,72 @@ appliance, register or chart), 502 (appliance answered with an error) or 503
 (appliance or Prometheus unreachable).
 
 Interactive docs: <http://127.0.0.1:8080/docs>, schema: `/openapi.json`.
+
+### Control API (overrides)
+
+The service's only write path. An automation asks for a register to be held at a value
+until a given time; the service checks the request, writes the value through the
+appliance's serialised Modbus connection, verifies it by reading it back, and restores
+the previous value when the override ends. The automation itself never talks to a
+device. [housereflex](https://github.com/isachse/housereflex) uses it to turn PV surplus
+into hot water.
+
+**Allow-list.** Only registers listed under a device's `overrides` can be written, and
+only single 16-bit holding registers. Numeric registers need bounds, enum registers the
+allowed labels with their raw codes:
+
+```json
+{
+  "name": "heatpump2", "host": "192.168.1.51", "profile": "neo",
+  "overrides": {
+    "dhw_setpoint_min": { "min": 40, "max": 55, "max_duration_s": 21600, "max_writes_per_day": 6 },
+    "return_setpoint_active": { "values": { "off": 0, "on": 1 } }
+  }
+}
+```
+
+| Rule option | Default | Description |
+|-------------|---------|-------------|
+| `min` / `max` | – (required for numbers) | Allowed range in engineering units (e.g. °C) |
+| `values` | – (required for enums) | Allowed labels → raw codes |
+| `max_duration_s` | `21600` (6 h) | Longest override; at most 24 h |
+| `max_writes_per_day` | `6` | Writes for applying overrides per local day; restores are never refused |
+
+**Token.** Writing needs `Authorization: Bearer <token>`. Put a random token (at least 16
+characters) into a file outside the repository and reference it with
+`service.control_token_file`, or set `HOUSEVITALS_CONTROL_TOKEN`; the token is never
+part of `devices.json`. Without a token, listing works and writing returns `403`.
+
+```bash
+mkdir -p ~/.config/housevitals && openssl rand -hex 32 > ~/.config/housevitals/control.token && chmod 600 ~/.config/housevitals/control.token
+```
+
+**Request.**
+
+```bash
+curl -X PUT http://127.0.0.1:8080/api/v1/appliances/wp2/overrides/dhw_setpoint_min \
+  -H "Authorization: Bearer $(cat ~/.config/housevitals/control.token)" -H "Content-Type: application/json" \
+  -d '{"value": 50, "until": "16:00", "owner": "manual/test", "reason": "PV surplus"}'
+```
+
+`until` takes an ISO date/time (local time unless an offset is given) or `HH:MM` today;
+alternatively `duration_s`. `owner` names who holds the override (`housereflex/<reflex>`
+for housereflex) and appears in logs and metrics.
+
+| Behaviour | |
+|-----------|---|
+| Baseline | The value before the first write is remembered and written back when the override ends (expiry or `DELETE`). Repeating `PUT` with the same owner changes value or end but keeps the baseline. |
+| Ownership | Another owner gets `409` while an override is active. |
+| Few writes | Nothing is written if the device already has the value. Controllers often keep setpoints in EEPROM, hence the daily write budget (`429` with `Retry-After` when used up). |
+| Manual changes win | If the register no longer holds the override value when it ends, someone changed it on the device; it is left alone and logged. |
+| Restarts | Overrides are persisted (`override_state_file`, mode 600). A restart keeps running overrides; expired ones are restored on start. |
+| Appliance down | Applying fails with `503`. A restore that fails is retried after the appliance's back-off (state `restoring`); meanwhile the register cannot be overridden again. |
+| Errors | `400` invalid value/duration, `401` wrong token, `403` no token configured, `404` not allow-listed, `409` conflict, `429` write budget, `502` device rejected the write, `503` unreachable. |
+
+The device's own schedule stays the fallback: if the whole host is off while an
+override is active, the register keeps the override value until the service runs again.
+Choose overrides whose value is harmless if it stays for a while (e.g. 50 °C hot water).
+Without any `overrides` in the config there is no control API and nothing is ever written.
 
 ### Metrics
 
@@ -350,6 +433,7 @@ the unit is appended as suffix:
 | Enum / bool | raw code / 0–1, e.g. `housevitals_compressor`, `housevitals_battery_charging` |
 | Service | `housevitals_up`, `housevitals_poll_duration_seconds`, `housevitals_poll_errors_total` |
 | Static info | `housevitals_appliance_info{serial_number="…", device_type="SH20T", …} 1` |
+| Overrides | `housevitals_override_active{appliance, key, owner}` (1 active, 0 restoring), `housevitals_override_writes_total{appliance, key}` |
 
 Counters drop a `total` token from the key (as Prometheus does), e.g.
 `electricity_total` → `housevitals_electricity_kWh_total`.
@@ -553,15 +637,16 @@ profiles (register labels) and a table in the dashboard generator.
 | `registry.py` | Register profiles (JSON) and the poll plan (fast/slow/static) |
 | `modbus.py` | Modbus TCP client: one serialised connection per appliance, batching, decoding |
 | `hub.py` | Poller, cache and per-appliance status; the only way to the devices |
+| `overrides.py` | Override manager: allow-list, leases, restore, write budget, persistence |
 | `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
 | `history.py` | Prometheus queries: history, calendar energy balance, runtimes |
 | `charts.py`, `chart_style.py` | Chart catalog, cache and scheduler; matplotlib look |
 | `queries.py` | Live-value selection and formatting shared by MCP and REST |
 | `server.py` | MCP tools (stdio entry point `housevitals-mcp`) |
 | `proxy.py` | stdio → HTTP bridge from `housevitals-mcp` to the running service |
-| `api.py` | REST API (FastAPI) |
+| `api.py` | REST API (FastAPI), incl. the control API |
 | `service.py` | Service entry point `housevitals`: wires everything into one HTTP app |
-| `context.py` | `Services`: hub, history and charts, created once per process |
+| `context.py` | `Services`: hub, history, charts and overrides, created once per process |
 | `prometheus.py` | Prometheus HTTP client: timeouts, circuit breaker, status |
 | `config.py`, `i18n.py`, `errors.py` | Configuration and CLI, languages, error types with HTTP status |
 
