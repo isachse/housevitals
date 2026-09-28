@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="housevitals: heat pump, inverter and PV connected to Prometheus, OpenTelemetry, REST, MCP and charts" width="420">
+  <img src="docs/logo.png" alt="housevitals: a house with heat pump, inverter and PV connected to heating, water, battery, gas, mobility and climate data" width="420">
 </p>
 
 # housevitals
