@@ -22,7 +22,7 @@ from housevitals.service import build_app, load_control_token
 from conftest import _start_neo
 
 TOKEN = "test-token-0123456789"
-OWNER = "housereflex/dhw_pv_boost"
+OWNER = "housereflexes/dhw_pv_boost"
 
 
 def _config(port, state_file, **rule):

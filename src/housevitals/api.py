@@ -97,7 +97,7 @@ def install_error_handler(app: FastAPI) -> None:
 
 class OverrideRequest(BaseModel):
     value: float | int | str = Field(description="Scaled value (e.g. 50 for 50 °C) or enum label")
-    owner: str = Field(description="Who holds the override, e.g. housereflex/dhw_pv_boost",
+    owner: str = Field(description="Who holds the override, e.g. housereflexes/dhw_pv_boost",
                        pattern=r"^[A-Za-z0-9_.:/-]{1,64}$")
     until: str | None = Field(None, description="End: ISO date/time (local unless an offset "
                               "is given) or HH:MM today. Exactly one of until/duration_s.")
