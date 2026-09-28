@@ -31,7 +31,7 @@ limited time, restored afterwards. Without an allow-list it never writes.
  Heat pumps, inverter/battery/meter  (Modbus TCP)
                 │  ▲
                 │  └── Overrides: allow-listed, bounded, time-limited ◄── Control API ◄── automations
-                ▼      (same serialized connection, restored afterwards)                (e.g. housereflex)
+                ▼      (same serialized connection, restored afterwards)                (e.g. housereflexes)
  Poller: one serialized connection per device, poll plan fast / slow / static
                 │
                 ▼
@@ -48,7 +48,7 @@ Each device-specific register (scaling, units, enum codes, invalid values) is
 normalized into named data points such as `flow_temperature` or `battery_soc`. The
 service is the only process talking to the hardware: live values come from its cache,
 so any number of consumers never cause additional device traffic. Automations that
-act on the data (e.g. [housereflex](https://github.com/isachse/housereflex), which
+act on the data (e.g. [housereflexes](https://github.com/isachse/housereflexes), which
 turns PV surplus into hot water) do not write to devices themselves either: they ask
 the service for an override, which it checks, writes through the same connection and
 undoes when it ends. Polled values are
@@ -358,7 +358,7 @@ The service's only write path. An automation asks for a register to be held at a
 until a given time; the service checks the request, writes the value through the
 appliance's serialised Modbus connection, verifies it by reading it back, and restores
 the previous value when the override ends. The automation itself never talks to a
-device. [housereflex](https://github.com/isachse/housereflex) uses it to turn PV surplus
+device. [housereflexes](https://github.com/isachse/housereflexes) uses it to turn PV surplus
 into hot water.
 
 **Allow-list.** Only registers listed under a device's `overrides` can be written, and
@@ -400,8 +400,8 @@ curl -X PUT http://127.0.0.1:8080/api/v1/appliances/wp2/overrides/dhw_setpoint_m
 ```
 
 `until` takes an ISO date/time (local time unless an offset is given) or `HH:MM` today;
-alternatively `duration_s`. `owner` names who holds the override (`housereflex/<reflex>`
-for housereflex) and appears in logs and metrics.
+alternatively `duration_s`. `owner` names who holds the override (`housereflexes/<reflex>`
+for housereflexes) and appears in logs and metrics.
 
 | Behaviour | |
 |-----------|---|
@@ -538,17 +538,18 @@ Settings changed in `/opt/homebrew/etc/grafana/grafana.ini`:
 | Section | Setting |
 |---------|---------|
 | `[paths]` | `provisioning = /path/to/housevitals/deploy/grafana/provisioning` |
-| `[server]` | `http_addr = 127.0.0.1` (local only) |
+| `[server]` | `http_addr = 0.0.0.0` (reachable from the LAN; `127.0.0.1` for this machine only) |
 | `[dashboards]` | `default_home_dashboard_path = …/deploy/grafana/dashboards/home-energy.json` |
-| `[auth.anonymous]` | `enabled = true` (read-only viewer without login, local only) |
+| `[auth.anonymous]` | `enabled = true` (read-only viewer without login for everyone who can reach Grafana) |
 | `[analytics]`, `[news]` | usage reporting, update checks and news feed off |
 
 ```bash
 brew services start grafana
 ```
 
-Open <http://localhost:3000>. Viewing needs no login; for editing sign in as `admin`
-(initial password `admin`, Grafana asks for a new one). Grafana 13 installs the
+Open <http://localhost:3000>, or `http://<host-ip>:3000` from other devices in the LAN
+(give the host a fixed IP in the router). Viewing needs no login; for editing sign in as `admin`
+(initial password `admin`, Grafana asks for a new one; change it, since the login is reachable from the LAN). Grafana 13 installs the
 Prometheus data-source plugin on first start; if the data source reports "plugin not
 registered", restart Grafana once.
 
