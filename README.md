@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="docs/logo.png" alt="housevitals-mcp: heat pump, inverter and PV connected to Prometheus, OpenTelemetry, REST, MCP and charts" width="420">
+  <img src="docs/logo.png" alt="housevitals: heat pump, inverter and PV connected to Prometheus, OpenTelemetry, REST, MCP and charts" width="420">
 </p>
 
-# housevitals-mcp
+# housevitals
 
 **housevitals is an open-source telemetry and data access layer for residential vital systems.**
 
 It collects and exposes the vital data of a home — from electricity, PV and battery to heating, water, gas, mobility and environmental conditions — providing a unified view of its ongoing state and resource flows.
 
-`housevitals-mcp` (MIT) is the service that implements it. Today it collects telemetry
+This repository (MIT) is the service that implements it. Today it collects telemetry
 from heat pumps, PV inverters and batteries, keeps its history, and exposes current and
 historical values through standard interfaces: Prometheus, a REST API, MCP (Model
 Context Protocol) and charts.
