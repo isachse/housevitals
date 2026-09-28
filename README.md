@@ -25,7 +25,8 @@ manufacturer-independent representation instead of each integrating every device
 | Sungrow SH hybrid inverters, incl. battery and grid meter | `sungrow_sh` |
 
 Further devices (wallboxes, smart meters, other heat pumps or inverters) can be added
-as register profiles. The service reads; it writes to a device only through
+as register profiles; see [Adding your own devices](#adding-your-own-devices) for a
+Claude Code prompt that guides you through it. The service reads; it writes to a device only through
 [overrides](#control-api-overrides): setpoints you allow-list, within bounds, for a
 limited time, restored afterwards. Without an allow-list it never writes.
 
@@ -621,6 +622,120 @@ Profiles live in `src/housevitals/profiles/*.json` and can be edited or extended
   conventions: battery power positive = discharging, grid power positive = import,
   export power positive = export. Some registers (e.g. meter voltages) are not
   supported by every model and return a per-value error.
+
+## Adding your own devices
+
+Devices from other vendors, or reached over other protocols, can be integrated with the
+help of [Claude Code](https://claude.com/claude-code). Clone the repository, start
+Claude Code in it and paste the prompt below, completed with what you know about your
+device:
+
+```bash
+git clone https://github.com/isachse/housevitals.git
+```
+
+```bash
+cd housevitals && claude
+```
+
+````text
+I want to integrate my own device into housevitals (this repository) and contribute
+the result upstream as a pull request.
+
+My device: <vendor, model, firmware version, what it is: heat pump / PV inverter /
+battery / wallbox / meter / ...>
+What I know about its interface: <e.g. "Modbus TCP on port 502, manual at <URL>",
+"only a local HTTP/JSON API", "RS485 Modbus RTU", "MQTT via vendor gateway", or
+"unknown">
+Where it is: <IP address or hostname on my local network; which gateway/adapter, if any>
+
+Work with me step by step, and ask before each step that talks to the device.
+
+Rules that apply throughout:
+- READ-ONLY. Never write to the device: no Modbus function 06/16, no POST/PUT to device
+  APIs, no configuration changes. Do not add the device to any `overrides` allow-list.
+  If you are unsure whether a request writes, don't send it and ask me.
+- Be gentle with the device: one connection at a time, pauses between requests, small
+  reads. Many gateways allow only one Modbus TCP client; if the vendor app or another
+  integration is connected, tell me before you try.
+- Keep my data out of the repository: no IP addresses, hostnames, serial numbers or
+  credentials in code, tests, fixtures, commits or the PR. My settings go into
+  `devices.json`, which is git-ignored. Anonymize anything copied from the device.
+
+1. Understand the project first. Read README.md (architecture, "Register profiles",
+   "Code structure"), src/housevitals/registry.py (profile format, PROFILE_NAMES, poll
+   plan), modbus.py, hub.py, history.py (DERIVED figures), charts.py (which charts need
+   which `kind` and keys), one existing profile in src/housevitals/profiles/ and
+   tests/conftest.py (device simulators). Summarize how a device is described and polled
+   before changing anything.
+
+2. Investigate the protocol and the connection.
+   - Find the official documentation (register map, API reference) and check existing
+     open-source integrations for this device (Home Assistant, evcc, openHAB, ioBroker,
+     SunSpec). Note their licenses: we may only derive from permissively licensed
+     sources, with attribution in LICENSE and README.
+   - Check reachability without reading data yet (ping, open port), then do a first
+     small read-only request: for Modbus TCP use scripts/probe.py with a similar
+     existing profile or single raw reads (unit id and 0- vs 1-based addressing are
+     common pitfalls). For other protocols, write a tiny read-only probe script under
+     scripts/.
+   - Report what works: transport, port, unit id or endpoints, byte and word order,
+     scaling, sign conventions, which values need a gateway setting to be enabled.
+
+3. Decide the integration path and explain it to me before implementing.
+   - Modbus TCP (also Modbus RTU/RS485 behind a Modbus TCP gateway): add a JSON profile
+     in src/housevitals/profiles/ and register it in PROFILE_NAMES. Prefer generating it
+     with a script in tools/ from a documented source, as for the existing profiles.
+   - Any other protocol (HTTP/JSON, MQTT, direct serial, ...): the hub currently creates
+     a Modbus client for every device. Propose a small transport abstraction with the
+     same contract as ModbusClient (serialised access; read(registers) returns
+     {key: {"value", "unit", "raw" | "error"}}; an unreachable device raises a
+     connection error; today hub.py's circuit breaker only recognizes
+     ModbusConnectError, so generalize that check as part of the abstraction) and a
+     first transport for my device. This touches the core, so draft a GitHub issue describing the proposal
+     for the maintainers first, and keep it separate from the device profile.
+
+4. Build the profile with good data points.
+   - Stable snake_case keys, reusing existing names for the same quantity (e.g.
+     battery_soc, pv_power, flow_temperature, electricity_total), so charts, metrics and
+     energy statistics work across vendors. English `label`, `label_de` if you can.
+   - Units and scale so values are engineering units; `enum` for state codes;
+     `invalid_raw` for "not available" markers; `word_order` for 32-bit values;
+     categories consistent with the other profiles.
+   - `summary: true` for the handful of overview values (they are polled every 15 s and
+     exported to Prometheus); lifetime energy counters in kWh (polled every 60 s);
+     serial number and firmware in category device_info.
+   - Choose `kind` (heat_pump, inverter or a new kind) and add DERIVED figures in
+     history.py where they make sense (e.g. performance factor, self-sufficiency).
+
+5. Test.
+   - Add a simulator fixture in tests/conftest.py with realistic, anonymized values
+     captured from my device, and a test module tests/test_<profile>.py covering
+     decoding (scaling, signs, 32-bit values, enums, invalid values), the MCP tools
+     (get_overview, read_values), the REST API and the exported metrics.
+   - Run the complete suite with `.venv/bin/pytest`; it must stay green.
+
+6. Verify against the real device.
+   - Run the service locally with my devices.json (read-only, no overrides) for at
+     least one full day/night cycle if possible.
+   - Compare the key values with the device display or the vendor app and give me a
+     table: data point, housevitals value, vendor value, deviation. Fix scaling or sign
+     errors before going on.
+
+7. Prepare the pull request, only after I confirm the verification.
+   - Branch `device/<vendor>-<model>`; commits with clear messages.
+   - README: add the device to "Supported hardware" and "Which profile do you need?",
+     document sources and licenses under "Register profiles", add attribution to
+     LICENSE if the profile is derived from another project.
+   - PR description: device, firmware, interface and gateway, how it was verified (the
+     comparison table), known limitations and untested registers.
+   - Check once more that no personal data (IP, hostname, serial number, credentials)
+     is in the diff, then push to my fork and open the PR against isachse/housevitals.
+````
+
+Integrations that are tested on a real device and come with tests are welcome as pull
+requests. For a new protocol, please open an issue first so the transport design can be
+agreed before the device work.
 
 ## Languages
 
