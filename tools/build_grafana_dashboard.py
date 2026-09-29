@@ -52,7 +52,13 @@ def per_appliance(expr: str) -> str:
     """
     expr = _INCREASE.sub(r"sum by (appliance) (increase(\1\2))", expr)
     expr = _SUBQUERY.sub(r"\1_over_time((max by (appliance) (\2))\3)", expr)
-    return _SELECTOR.sub(r"max by (appliance) (\1)", expr)
+
+    def combine(m: re.Match) -> str:
+        # forecast metrics have no appliance label; they are keyed by array and day
+        by = "array, day" if m.group(1).startswith(M + "forecast_") else "appliance"
+        return f"max by ({by}) ({m.group(1)})"
+
+    return _SELECTOR.sub(combine, expr)
 
 
 def daily_energy(metric: str, appliance: str, to_kw: float) -> str:
@@ -124,7 +130,8 @@ def stat(title, targets, grid, unit="none", decimals=None, overrides=None, mappi
         "options": {
             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
             "colorMode": color_mode, "graphMode": "none",
-            "textMode": "value_and_name" if len(targets) > 1 else "value",
+            # names when there are several values: several targets, or one per label value
+            "textMode": "value_and_name" if len(targets) > 1 or "{{" in targets[0]["legendFormat"] else "value",
             "justifyMode": "center", "orientation": "vertical", "wideLayout": True,
             "showPercentChange": False,
         },
@@ -261,6 +268,24 @@ def build() -> dict:
     y += 4
 
     # ---- Jetzt: Wärmepumpen
+    # ---- Prognose (Open-Meteo, see README "PV forecast")
+    panels.append(row("Prognose · PV", y)); y += 1
+    energy = f"{M}forecast_pv_energy_kWh"
+    panels += [
+        stat("PV-Prognose heute", [target(f'{energy}{{day="today"}}', "heute")], g(0, y, 6, 4),
+             "kwatth", decimals=1, only_when_up=False,
+             description="Erwartete PV-Erzeugung des ganzen Tages (Open-Meteo, je Modulfeld kalibriert)."),
+        stat("PV-Prognose morgen", [target(f'{energy}{{day="tomorrow"}}', "morgen")], g(6, y, 6, 4),
+             "kwatth", decimals=1, only_when_up=False,
+             description="Erwartete PV-Erzeugung von morgen."),
+        stat("Performance Ratio je Modulfeld",
+             [target(f'{M}forecast_performance_ratio{{array!=""}}', "{{array}}")], g(12, y, 12, 4),
+             "percentunit", decimals=0, only_when_up=False,
+             description="Gemessene / modellierte Energie der letzten Tage je Modulfeld. "
+                         "Deutlich unter den anderen: Verschattung, Verschmutzung oder ein Defekt."),
+    ]
+    y += 4
+
     panels.append(row("Jetzt · Wärmepumpen", y)); y += 1
     hp_tiles = [
         ("Außentemperatur", "outdoor_temperature_celsius", "celsius", 1),
@@ -292,9 +317,11 @@ def build() -> dict:
             target(f"{M}load_power_watts{{{INV}}}", "Haus"),
             target(f"{M}battery_power_watts{{{INV}}}", "Batterie"),
             target(f"{M}grid_power_watts{{{INV}}}", "Netz"),
+            target(f'{M}forecast_pv_power_watts{{array="total"}}', "PV-Prognose"),
         ], g(0, y, 16, 9), "watt",
-        description="Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung.",
-        overrides=[override(n, c) for n, c in FLOW.items()]))
+        description="Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung. "
+                    "Gestrichelt: prognostizierte PV-Leistung.",
+        overrides=[override(n, c) for n, c in FLOW.items()] + [override("PV-Prognose", YELLOW, dashed=True)]))
     panels.append(timeseries(
         "Batterie-Ladezustand", [target(f"{M}battery_soc_percent{{{INV}}}", "Ladezustand")],
         g(16, y, 8, 9), "percent", min_=0, max_=100, overrides=[override("Ladezustand", AQUA)]))
@@ -452,7 +479,7 @@ def build() -> dict:
 # (titles, descriptions, legends, state texts). Queries are never touched. A display
 # text missing from a table is an error, so no half-translated dashboard is written.
 KEEP = {"PV", "L1", "L2", "L3", "String 1", "String 2", "String 3", "Prometheus", "REST-API",
-        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}"}
+        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}", "{{array}}"}
 TRANSLATIONS = {
     "en": {
         "Haus · Energie & Wärmepumpen": "Home · Energy & heat pumps",
@@ -504,8 +531,21 @@ TRANSLATIONS = {
         "Positiv = Bezug aus dem Netz, negativ = Einspeisung.":
             "Positive = import from the grid, negative = feed-in.",
         "Positiv = Bezug, negativ = Einspeisung.": "Positive = import, negative = feed-in.",
-        "Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung.":
-            "Battery: positive = discharging, negative = charging. Grid: positive = import, negative = feed-in.",
+        "Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung. "
+        "Gestrichelt: prognostizierte PV-Leistung.":
+            "Battery: positive = discharging, negative = charging. Grid: positive = import, negative = feed-in. "
+            "Dashed: forecast PV power.",
+        "Prognose · PV": "Forecast · PV", "PV-Prognose": "PV forecast",
+        "PV-Prognose heute": "PV forecast today", "PV-Prognose morgen": "PV forecast tomorrow",
+        "heute": "today", "morgen": "tomorrow",
+        "Performance Ratio je Modulfeld": "Performance ratio per array",
+        "Erwartete PV-Erzeugung des ganzen Tages (Open-Meteo, je Modulfeld kalibriert).":
+            "Expected PV generation of the whole day (Open-Meteo, calibrated per array).",
+        "Erwartete PV-Erzeugung von morgen.": "Expected PV generation tomorrow.",
+        "Gemessene / modellierte Energie der letzten Tage je Modulfeld. "
+        "Deutlich unter den anderen: Verschattung, Verschmutzung oder ein Defekt.":
+            "Measured / modelled energy of the past days per array. "
+            "Clearly below the others: shading, soiling or a defect.",
         "Letzte Modbus-Abfrage erfolgreich. Keine Anzeige = Dienst liefert keine Daten.":
             "Last Modbus request succeeded. Nothing shown = the service delivers no data.",
         "Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).":

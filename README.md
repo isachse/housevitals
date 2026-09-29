@@ -310,6 +310,61 @@ History, energy statistics and charts degrade instead of hanging:
 | Metrics | Failed OTLP exports are buffered for up to 25 min and re-sent in order once Prometheus is back (it accepts them via `out_of_order_time_window: 30m`), so short outages such as a restart or update leave no gap. Older batches are dropped and counted. |
 | `/healthz` | stays `ok`; reports `history`, `metrics_export` (buffered/dropped) and outdated charts. |
 
+### PV forecast and surplus windows
+
+With a `forecast` section in `devices.json`, the service forecasts PV generation for
+today and tomorrow from [Open-Meteo](https://open-meteo.com) weather forecasts and
+derives **surplus windows**: periods in which the battery is full (or charging at its
+limit) and PV is expected to be exported, e.g. for automations such as housereflexes.
+
+```json
+"forecast": {
+  "latitude": 52.52, "longitude": 13.40, "appliance": "inverter",
+  "arrays": [
+    { "name": "south", "kwp": 6.3, "tilt": 30, "azimuth": 0,   "voltage": "mppt1_voltage", "current": "mppt1_current" },
+    { "name": "east",  "kwp": 4.0, "tilt": 20, "azimuth": -90, "voltage": "mppt2_voltage", "current": "mppt2_current" }
+  ],
+  "battery_max_charge_w": 10000, "battery_max_discharge_w": 10000, "surplus_threshold_w": 1000
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `latitude` / `longitude` | – (required) | Site; about two decimals (≈ 1 km) are enough. Sent to Open-Meteo with every request. |
+| `appliance` | – (required) | Inverter whose data points are used (name or alias) |
+| `arrays` | – (required) | One entry per PV array (usually per MPPT input): `kwp`, `tilt` (0 = flat), `azimuth` (0 = south, −90 = east, +90 = west) and its measured power, either `power` or `voltage` + `current` data points |
+| `refresh_s` | `900` | How often the forecast is fetched and recalibrated |
+| `calibration_days` | `14` | Past days used for calibration and the load profile (1–92) |
+| `load`, `battery_soc`, `battery_capacity` | `load_power`, `battery_soc`, `battery_capacity` | Data points for the surplus simulation |
+| `battery_min_soc` | `5` | Lowest state of charge the simulation discharges to (%) |
+| `battery_max_charge_w` / `battery_max_discharge_w` | `10000` | Battery power limits |
+| `surplus_threshold_w` | `1000` | Minimum expected export for a surplus window |
+| `max_ac_w` | – | Inverter AC limit; caps the forecast |
+
+**Model.** Every `refresh_s` the service fetches 15-minute irradiance (global, direct,
+diffuse) and temperature for the past `calibration_days` and the next two days. Per
+array it computes the irradiance on the module plane (sun position, isotropic sky
+model) and the DC power including a cell temperature loss. A **performance ratio** per
+array is calibrated as measured / modelled energy over the past days. This absorbs
+shading, soiling and inverter losses; being an energy ratio, it is robust against
+clouds that the past forecasts placed an hour off. Until an array has 2 kWh of
+modelled energy, 0.85 is used. The surplus simulation starts from the current battery
+state of charge, adds the forecast PV and subtracts the house load (mean per quarter
+hour of the past days), within the battery's limits. What does not fit into the
+battery is export; windows of export above `surplus_threshold_w` are reported.
+
+| Interface | |
+|-----------|---|
+| MCP | `get_pv_forecast` (energy per day and power per hour or quarter hour, per array), `get_surplus_windows` (battery full time, windows, energy per day, optionally the simulated course) |
+| REST | `GET /api/v1/forecast` (status, calibrated arrays), `/api/v1/forecast/pv?day=&resolution=1h\|15m`, `/api/v1/forecast/surplus?threshold_w=&resolution=` |
+| Metrics | `housevitals_forecast_pv_power_watts{array}` (forecast for the running quarter hour, per array and `total`), `housevitals_forecast_pv_energy_kWh{day="today"\|"tomorrow"}`, `housevitals_forecast_performance_ratio{array}`, `housevitals_forecast_age_seconds` |
+| Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart, to compare with the measured power |
+
+If Open-Meteo is unreachable, the previous forecast stays in use and is marked
+`stale` with `last_error`; without any forecast yet the endpoints return `503`.
+Forecasts are estimates: timing and strength of clouds are the main uncertainty.
+Open-Meteo's free API is for non-commercial use; see its terms.
+
 ### Charts
 
 `get_chart` returns a pre-rendered PNG (1000×520 px, ~20–40 KB) plus the chart's key
@@ -345,6 +400,7 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /api/v1/energy?period=day&start=…&appliance=…` | Energy per calendar period |
 | `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
 | `GET /api/v1/charts` | Chart catalog and cached images |
+| `GET /api/v1/forecast`, `/forecast/pv`, `/forecast/surplus` | PV forecast and surplus windows |
 | `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
 | `GET /api/v1/overrides` | Active overrides and what may be overridden (all appliances) |
 | `GET /api/v1/appliances/{name}/overrides` | The same for one appliance |
@@ -620,6 +676,7 @@ grid orange). Dashed lines mark return temperature, setpoints and low pressure.
 | `list_registers` | Discover data points by category or search term (no device access) |
 | `read_values` | Read data points by key, category or search term |
 | `read_raw_registers` | Raw holding/input register words for diagnostics |
+| `get_pv_forecast`, `get_surplus_windows` | PV forecast and surplus windows (with a `forecast` section; see [PV forecast](#pv-forecast-and-surplus-windows)) |
 
 Every tool except `list_devices` takes an optional `appliance` argument (name or alias).
 It can be omitted when only one appliance is configured or `default_device` is set.
@@ -817,6 +874,7 @@ profiles (register labels) and a table in the dashboard generator.
 | `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
 | `history.py` | Prometheus queries: history, calendar energy balance, runtimes |
 | `charts.py`, `chart_style.py` | Chart catalog, cache and scheduler; matplotlib look |
+| `forecast.py`, `solar.py` | Open-Meteo PV forecast, calibration, surplus simulation; sun position and plane irradiance |
 | `queries.py` | Live-value selection and formatting shared by MCP and REST |
 | `server.py` | MCP tools (stdio entry point `housevitals-mcp`) |
 | `proxy.py` | stdio → HTTP bridge from `housevitals-mcp` to the running service |

@@ -960,7 +960,7 @@
     },
     {
       "type": "row",
-      "title": "Jetzt · Wärmepumpen",
+      "title": "Prognose · PV",
       "collapsed": false,
       "id": 13,
       "gridPos": {
@@ -973,11 +973,228 @@
     },
     {
       "type": "stat",
+      "title": "PV-Prognose heute",
+      "description": "Erwartete PV-Erzeugung des ganzen Tages (Open-Meteo, je Modulfeld kalibriert).",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 6,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"})",
+          "legendFormat": "heute",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "PV-Prognose morgen",
+      "description": "Erwartete PV-Erzeugung von morgen.",
+      "gridPos": {
+        "x": 6,
+        "y": 11,
+        "w": 6,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"})",
+          "legendFormat": "morgen",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Performance Ratio je Modulfeld",
+      "description": "Gemessene / modellierte Energie der letzten Tage je Modulfeld. Deutlich unter den anderen: Verschattung, Verschmutzung oder ein Defekt.",
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 16,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_performance_ratio{array!=\"\"})",
+          "legendFormat": "{{array}}",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Jetzt · Wärmepumpen",
+      "collapsed": false,
+      "id": 17,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
       "title": "Außentemperatur",
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1051,7 +1268,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 14,
+      "id": 18,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1087,7 +1304,7 @@
       "description": "",
       "gridPos": {
         "x": 4,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1161,7 +1378,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 15,
+      "id": 19,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1197,7 +1414,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1271,7 +1488,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 16,
+      "id": 20,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1307,7 +1524,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1380,7 +1597,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 17,
+      "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1416,7 +1633,7 @@
       "description": "",
       "gridPos": {
         "x": 16,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1481,7 +1698,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 18,
+      "id": 22,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1517,7 +1734,7 @@
       "description": "Jahresarbeitszahl: gelieferte Wärme / aufgenommener Strom, gesamt.",
       "gridPos": {
         "x": 20,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1560,7 +1777,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 19,
+      "id": 23,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1594,22 +1811,22 @@
       "type": "row",
       "title": "Verlauf · Energiefluss",
       "collapsed": false,
-      "id": 20,
+      "id": 24,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Leistung",
-      "description": "Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung.",
+      "description": "Batterie: positiv = entlädt, negativ = lädt. Netz: positiv = Bezug, negativ = Einspeisung. Gestrichelt: prognostizierte PV-Leistung.",
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 22,
         "w": 16,
         "h": 9
       },
@@ -1701,6 +1918,31 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PV-Prognose"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    6
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -1719,7 +1961,7 @@
           "sort": "none"
         }
       },
-      "id": 21,
+      "id": 25,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1768,6 +2010,17 @@
           "range": true,
           "instant": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_power_watts{array=\"total\"})",
+          "legendFormat": "PV-Prognose",
+          "range": true,
+          "instant": false,
+          "refId": "E"
         }
       ]
     },
@@ -1777,7 +2030,7 @@
       "description": "",
       "gridPos": {
         "x": 16,
-        "y": 17,
+        "y": 22,
         "w": 8,
         "h": 9
       },
@@ -1844,7 +2097,7 @@
           "sort": "none"
         }
       },
-      "id": 22,
+      "id": 26,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1869,7 +2122,7 @@
       "description": "Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -1982,7 +2235,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 23,
+      "id": 27,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2044,7 +2297,7 @@
       "description": "Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).",
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -2127,7 +2380,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 24,
+      "id": 28,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2163,12 +2416,12 @@
       "type": "row",
       "title": "Verlauf · Wärmepumpen",
       "collapsed": false,
-      "id": 25,
+      "id": 29,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 40
       },
       "panels": []
     },
@@ -2178,7 +2431,7 @@
       "description": "Durchgezogen = Vorlauf, gestrichelt = Rücklauf.",
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 41,
         "w": 12,
         "h": 9
       },
@@ -2309,7 +2562,7 @@
           "sort": "none"
         }
       },
-      "id": 26,
+      "id": 30,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2367,7 +2620,7 @@
       "description": "Durchgezogen = Ist, gestrichelt = Sollwert (bis dahin wird geladen), gepunktet = Minimum (darunter startet eine Ladung). Die Wärmepumpe lässt das Minimum höchstens 5 K unter dem Sollwert zu.",
       "gridPos": {
         "x": 12,
-        "y": 36,
+        "y": 41,
         "w": 12,
         "h": 9
       },
@@ -2549,7 +2802,7 @@
           "sort": "none"
         }
       },
-      "id": 27,
+      "id": 31,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2629,7 +2882,7 @@
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2710,7 +2963,7 @@
           "sort": "none"
         }
       },
-      "id": 28,
+      "id": 32,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2746,7 +2999,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 45,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2827,7 +3080,7 @@
           "sort": "none"
         }
       },
-      "id": 29,
+      "id": 33,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2863,7 +3116,7 @@
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 58,
         "w": 12,
         "h": 5
       },
@@ -2919,7 +3172,7 @@
           "sort": "none"
         }
       },
-      "id": 30,
+      "id": 34,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2955,7 +3208,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 53,
+        "y": 58,
         "w": 12,
         "h": 5
       },
@@ -3019,7 +3272,7 @@
           "sort": "none"
         }
       },
-      "id": 31,
+      "id": 35,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3055,7 +3308,7 @@
       "description": "Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.",
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 63,
         "w": 12,
         "h": 8
       },
@@ -3138,7 +3391,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 32,
+      "id": 36,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3176,7 +3429,7 @@
       "description": "Gelieferte Wärme je Wärmepumpe und Tag, aus der gemessenen thermischen Leistung summiert.",
       "gridPos": {
         "x": 12,
-        "y": 58,
+        "y": 63,
         "w": 12,
         "h": 8
       },
@@ -3259,7 +3512,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 33,
+      "id": 37,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3295,12 +3548,12 @@
       "type": "row",
       "title": "Details · PV-Anlage",
       "collapsed": true,
-      "id": 38,
+      "id": 42,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 71
       },
       "panels": [
         {
@@ -3309,7 +3562,7 @@
           "description": "MPPT-Spannung × Strom.",
           "gridPos": {
             "x": 0,
-            "y": 67,
+            "y": 72,
             "w": 12,
             "h": 8
           },
@@ -3404,7 +3657,7 @@
               "sort": "none"
             }
           },
-          "id": 34,
+          "id": 38,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3451,7 +3704,7 @@
           "description": "Positiv = Bezug, negativ = Einspeisung.",
           "gridPos": {
             "x": 12,
-            "y": 67,
+            "y": 72,
             "w": 12,
             "h": 8
           },
@@ -3546,7 +3799,7 @@
               "sort": "none"
             }
           },
-          "id": 35,
+          "id": 39,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3593,7 +3846,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 75,
+            "y": 80,
             "w": 12,
             "h": 8
           },
@@ -3674,7 +3927,7 @@
               "sort": "none"
             }
           },
-          "id": 36,
+          "id": 40,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3710,7 +3963,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 75,
+            "y": 80,
             "w": 12,
             "h": 8
           },
@@ -3805,7 +4058,7 @@
               "sort": "none"
             }
           },
-          "id": 37,
+          "id": 41,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3852,12 +4105,12 @@
       "type": "row",
       "title": "Details · Wärmepumpen",
       "collapsed": true,
-      "id": 43,
+      "id": 47,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 67
+        "y": 72
       },
       "panels": [
         {
@@ -3866,7 +4119,7 @@
           "description": "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.",
           "gridPos": {
             "x": 0,
-            "y": 68,
+            "y": 73,
             "w": 12,
             "h": 8
           },
@@ -3996,7 +4249,7 @@
               "sort": "none"
             }
           },
-          "id": 39,
+          "id": 43,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4054,7 +4307,7 @@
           "description": "Durchgezogen = Kondensation, gestrichelt = Verdampfung.",
           "gridPos": {
             "x": 12,
-            "y": 68,
+            "y": 73,
             "w": 12,
             "h": 8
           },
@@ -4185,7 +4438,7 @@
               "sort": "none"
             }
           },
-          "id": 40,
+          "id": 44,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4243,7 +4496,7 @@
           "description": "Durchgezogen = Wärmequelle (Eintritt), gestrichelt = Pufferspeicher.",
           "gridPos": {
             "x": 0,
-            "y": 76,
+            "y": 81,
             "w": 12,
             "h": 8
           },
@@ -4374,7 +4627,7 @@
               "sort": "none"
             }
           },
-          "id": 41,
+          "id": 45,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4432,7 +4685,7 @@
           "description": "Liter pro Minute.",
           "gridPos": {
             "x": 12,
-            "y": 76,
+            "y": 81,
             "w": 12,
             "h": 8
           },
@@ -4513,7 +4766,7 @@
               "sort": "none"
             }
           },
-          "id": 42,
+          "id": 46,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4549,12 +4802,12 @@
       "type": "row",
       "title": "Dienst · housevitals",
       "collapsed": true,
-      "id": 46,
+      "id": 50,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 73
       },
       "panels": [
         {
@@ -4563,7 +4816,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 69,
+            "y": 74,
             "w": 12,
             "h": 6
           },
@@ -4612,7 +4865,7 @@
               "sort": "none"
             }
           },
-          "id": 44,
+          "id": 48,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4659,7 +4912,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 69,
+            "y": 74,
             "w": 12,
             "h": 6
           },
@@ -4754,7 +5007,7 @@
               "sort": "none"
             }
           },
-          "id": 45,
+          "id": 49,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
