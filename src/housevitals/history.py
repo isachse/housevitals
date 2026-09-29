@@ -31,6 +31,21 @@ MAX_RUNTIME_DAYS = 31
 MAX_SAMPLE_GAP = 120.0
 # How far back to look for a counter reading at a period boundary.
 COUNTER_LOOKBACK = "7d"
+# The "last" value of a series is read from this window at the end of the range, so a
+# series that ended earlier (see below) cannot win over the current one.
+LAST_VALUE_WINDOW_S = 120
+
+# One appliance data point can be stored as several Prometheus series: whenever a
+# label besides `appliance` changes (host name, version, ...) a new series starts and
+# the old one stops. Every query therefore combines all series of an appliance; this
+# maps each *_over_time function to the aggregation that keeps its meaning.
+COMBINE = {"min_over_time": "min", "max_over_time": "max", "avg_over_time": "avg",
+           "last_over_time": "max", "count_over_time": "sum"}
+
+
+def combined(fn: str, selector: str, window: str) -> str:
+    """fn over the window, combined over all series of each appliance."""
+    return f"{COMBINE[fn]} by (appliance) ({fn}({selector}[{window}]))"
 
 # Derived energy figures per profile: name -> (numerator keys, denominator keys, kind)
 # kind "ratio" = sum(num) / sum(den); "sum" = sum(num); "one_minus" = 1 - num/den.
@@ -252,10 +267,12 @@ class History:
             is_state = reg.enum is not None or reg.data_type == "bool"
             # Points: average per step for measurements, last value for states/counters.
             fn = "last_over_time" if is_state or reg.is_counter else "avg_over_time"
-            points_q = self._range(f"{fn}({s.selector}[{step}s])", t_start, t_end, step)
-            stat_qs = [self._instant(f"{f}({s.selector}[{window}])", t_end)
-                       for f in ("min_over_time", "max_over_time", "avg_over_time",
-                                 "last_over_time", "count_over_time")]
+            points_q = self._range(combined(fn, s.selector, f"{step}s"), t_start, t_end, step)
+            last_window = f"{int(min(seconds, max(LAST_VALUE_WINDOW_S, step)))}s"
+            stat_qs = [self._instant(combined(f, s.selector, w), t_end)
+                       for f, w in (("min_over_time", window), ("max_over_time", window),
+                                    ("avg_over_time", window), ("last_over_time", last_window),
+                                    ("count_over_time", window))]
             points_r, *stats_r = await asyncio.gather(points_q, *stat_qs)
             stat = [float(r[0]["value"][1]) if r else None for r in stats_r]
             out: dict[str, Any] = {"label": reg.display_label(lang)}
@@ -265,6 +282,8 @@ class History:
                 out["error"] = "no data in this time range"
                 return reg.key, out
             values = points_r[0]["values"] if points_r else []
+            if stat[3] is None and values:  # nothing in the last minutes: last point
+                stat[3] = float(values[-1][1])
             if is_state:
                 out["last"] = self._enum_text(reg, stat[3])
                 out["points"] = [[_iso(t, self.tz), self._enum_text(reg, float(v))] for t, v in values]
@@ -318,10 +337,12 @@ class History:
             return {(r["metric"]["appliance"], r["metric"]["__name__"]): float(r["value"][1])
                     for r in result}
 
-        # Counter reading at every boundary (last sample before it). last_over_time
-        # keeps the metric name, so one query per boundary covers every counter.
-        at_bounds = await asyncio.gather(
-            *(self._instant(f"last_over_time({sel}[{COUNTER_LOOKBACK}])", b) for b in bounds))
+        # Counter reading at every boundary (last sample before it), one query per
+        # boundary for every counter. Counters only grow, so over several series of
+        # the same counter the highest reading is the current one.
+        at_bounds = await asyncio.gather(*(
+            self._instant(f"max by (__name__, appliance) (last_over_time({sel}[{COUNTER_LOOKBACK}]))", b)
+            for b in bounds))
         readings = [index(r) for r in at_bounds]
         # Periods starting before recording began: use the first sample inside the
         # period (min of a monotonic counter). min_over_time drops the metric name,
@@ -338,7 +359,7 @@ class History:
         async def first(i: int, metric: str) -> None:
             dur = max(1, int((bounds[i + 1] - bounds[i]).total_seconds()))
             result = await self._instant(
-                f'min_over_time({metric}{{appliance=~"{apps_re}"}}[{dur}s])', bounds[i + 1])
+                combined("min_over_time", f'{metric}{{appliance=~"{apps_re}"}}', f"{dur}s"), bounds[i + 1])
             for r in result:
                 firsts[i][(r["metric"]["appliance"], metric)] = float(r["value"][1])
 
@@ -416,7 +437,8 @@ class History:
         if seconds > MAX_RUNTIME_DAYS * 86400:
             raise HistoryError(f"At most {MAX_RUNTIME_DAYS} days per runtime query.")
         result = await self._instant(f"{s.selector}[{int(seconds)}s]", t_end)
-        samples = [(float(t), float(v)) for t, v in result[0]["values"]] if result else []
+        # Merge the raw samples of all series of this data point (see COMBINE).
+        samples = sorted({float(t): float(v) for r in result for t, v in r["values"]}.items())
         if not samples:
             raise HistoryError("no data in this time range")
 

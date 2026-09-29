@@ -36,7 +36,24 @@ _ids = iter(range(1, 1000))
 # day, so today's (partial) bar is visible instead of appearing only tomorrow.
 
 # --------------------------------------------------------------------------- helpers
+_INCREASE = re.compile(r"increase\((" + M + r"\w+\{[^}]*\})(\[[^\]]+\](?: offset -?\w+)?)\)")
+_SELECTOR = re.compile(r"(?<!increase\()(" + M + r"\w+\{[^}]*\})(?![\[\w])")
+
+
+def per_appliance(expr: str) -> str:
+    """Combine all series of each appliance.
+
+    One data point can be stored as several series (a label such as the host name or
+    the version changed and a new series started), so every selector is combined per
+    appliance: momentary values by max, increases by sum (each series covers its own
+    part of the time range).
+    """
+    expr = _INCREASE.sub(r"sum by (appliance) (increase(\1\2))", expr)
+    return _SELECTOR.sub(r"max by (appliance) (\1)", expr)
+
+
 def target(expr: str, legend: str = "", instant: bool = False, interval: str | None = None) -> dict:
+    expr = per_appliance(expr)
     t = {"datasource": DS, "expr": expr, "legendFormat": legend or "__auto", "range": not instant,
          "instant": instant}
     if interval:
@@ -73,7 +90,7 @@ def stat(title, targets, grid, unit="none", decimals=None, overrides=None, mappi
     """
     for t in targets:
         if only_when_up:
-            t["expr"] = f"({t['expr']}) and on(appliance) {M}up == 1"
+            t["expr"] = f"({t['expr']}) and on(appliance) max by (appliance) ({M}up) == 1"
         t["instant"], t["range"] = True, False
     defaults = {"unit": unit, "mappings": mappings or [],
                 "color": {"mode": "thresholds"} if thresholds else {"mode": "fixed", "fixedColor": GRAY},
