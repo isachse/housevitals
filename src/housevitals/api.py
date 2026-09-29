@@ -165,6 +165,8 @@ def build_router(services: Services, control_token: str | None = None) -> APIRou
         _history_routes(router, services, Lang)
     if services.charts is not None:
         _chart_routes(router, services, Lang)
+    if services.forecast is not None:
+        _forecast_routes(router, services)
     if services.overrides is not None:
         _override_routes(router, services, control_token)
     return router
@@ -253,6 +255,31 @@ def _history_routes(router: APIRouter, services: Services, Lang) -> None:
     ) -> dict[str, Any]:
         """Hours and share per state, starts and run lengths."""
         return await history.runtime(hub.get(name), key, start, end, lang)
+
+
+def _forecast_routes(router: APIRouter, services: Services) -> None:
+    forecast = services.forecast
+
+    @router.get("/forecast", tags=["forecast"])
+    def forecast_status() -> dict[str, Any]:
+        """Forecast source, issue time and the calibrated PV arrays."""
+        return forecast.status()
+
+    @router.get("/forecast/pv", tags=["forecast"])
+    async def pv_forecast(
+        day: str = Query("", description="today, tomorrow or an ISO date; empty = both"),
+        resolution: str = Query("1h", pattern="^(1h|15m)$"),
+    ) -> dict[str, Any]:
+        """PV energy per day and mean power per interval, per array (Open-Meteo, calibrated)."""
+        return await forecast.pv_forecast(day, resolution)
+
+    @router.get("/forecast/surplus", tags=["forecast"])
+    async def surplus(
+        threshold_w: float = Query(0, ge=0, description="Minimum export for a window; 0 = configured"),
+        resolution: str = Query("", pattern="^(|1h|15m)$", description="Add the simulated course"),
+    ) -> dict[str, Any]:
+        """Battery simulation to the end of tomorrow: full time, surplus (export) windows."""
+        return await forecast.surplus(threshold_w, resolution)
 
 
 def _chart_routes(router: APIRouter, services: Services, Lang) -> None:

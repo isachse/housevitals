@@ -185,12 +185,85 @@ class ServiceConfig:
 
 
 @dataclass
+class PVArray:
+    """One PV array (e.g. the modules on one MPPT input) for the forecast."""
+
+    name: str
+    kwp: float
+    tilt: float  # degrees from horizontal
+    azimuth: float  # degrees, 0 = south, negative = east, positive = west
+    # Measured power for calibration: a power data point, or voltage × current.
+    power: str | None = None
+    voltage: str | None = None
+    current: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PVArray:
+        where = f"forecast array '{data.get('name', '?')}'"
+        unknown = set(data) - {"name", "kwp", "tilt", "azimuth", "power", "voltage", "current"}
+        if unknown:
+            raise ConfigError(f"{where}: unknown option(s) {', '.join(sorted(unknown))}")
+        try:
+            array = cls(name=str(data["name"]), kwp=float(data["kwp"]), tilt=float(data["tilt"]),
+                        azimuth=float(data.get("azimuth", 0)), power=data.get("power"),
+                        voltage=data.get("voltage"), current=data.get("current"))
+        except KeyError as err:
+            raise ConfigError(f"{where}: '{err.args[0]}' is required") from err
+        if not (0 < array.kwp and 0 <= array.tilt <= 90 and -180 <= array.azimuth <= 180):
+            raise ConfigError(f"{where}: kwp > 0, tilt 0..90, azimuth -180..180 required")
+        if not array.power and not (array.voltage and array.current):
+            raise ConfigError(f"{where}: set 'power', or 'voltage' and 'current'")
+        return array
+
+
+@dataclass
+class ForecastConfig:
+    """PV forecast and surplus windows from Open-Meteo weather forecasts."""
+
+    latitude: float
+    longitude: float
+    appliance: str  # the inverter whose data points are used
+    arrays: list[PVArray]
+    refresh_s: float = 900.0
+    calibration_days: int = 14
+    open_meteo_url: str = "https://api.open-meteo.com/v1/forecast"
+    # Surplus simulation (data points of the appliance, battery limits)
+    load: str = "load_power"
+    battery_soc: str | None = "battery_soc"
+    battery_capacity: str | None = "battery_capacity"  # kWh data point
+    battery_min_soc: float = 5.0
+    battery_max_charge_w: float = 10000.0
+    battery_max_discharge_w: float = 10000.0
+    surplus_threshold_w: float = 1000.0
+    max_ac_w: float | None = None  # inverter AC limit, caps the forecast
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ForecastConfig:
+        known = set(cls.__dataclass_fields__)
+        unknown = set(data) - known
+        if unknown:
+            raise ConfigError(f"Unknown forecast option(s): {', '.join(sorted(unknown))}")
+        for required in ("latitude", "longitude", "appliance", "arrays"):
+            if required not in data:
+                raise ConfigError(f"forecast: '{required}' is required")
+        cfg = cls(**{**data, "arrays": [PVArray.from_dict(a) for a in data["arrays"]]})
+        if not (-90 <= cfg.latitude <= 90 and -180 <= cfg.longitude <= 180):
+            raise ConfigError("forecast: latitude/longitude out of range")
+        if not cfg.arrays:
+            raise ConfigError("forecast: at least one array is required")
+        if not 1 <= cfg.calibration_days <= 92:
+            raise ConfigError("forecast: calibration_days must be 1..92 (Open-Meteo past_days)")
+        return cfg
+
+
+@dataclass
 class ServerConfig:
     devices: list[DeviceConfig]
     default_device: str | None = None
     # Default language of human-facing output (REST API, charts); MCP text is English.
     lang: str = i18n.DEFAULT
     service: ServiceConfig = field(default_factory=ServiceConfig)
+    forecast: ForecastConfig | None = None
     _lookup: dict[str, DeviceConfig] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -207,6 +280,8 @@ class ServerConfig:
                 self._lookup[key] = dev
         if self.default_device is not None:
             self.default_device = self.resolve(self.default_device).name
+        if self.forecast is not None:
+            self.forecast.appliance = self.resolve(self.forecast.appliance).name
         if self.lang not in i18n.SUPPORTED:
             raise ConfigError(f"lang must be one of {', '.join(i18n.SUPPORTED)}")
 
@@ -256,6 +331,7 @@ def load_config_file(path: str | Path) -> ServerConfig:
         default_device=raw.get("default_device"),
         lang=raw.get("lang", i18n.DEFAULT),
         service=ServiceConfig.from_dict(raw.get("service", {})),
+        forecast=ForecastConfig.from_dict(raw["forecast"]) if raw.get("forecast") else None,
     )
 
 

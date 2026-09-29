@@ -961,7 +961,7 @@
     },
     {
       "type": "row",
-      "title": "Now · heat pumps",
+      "title": "Forecast · PV",
       "collapsed": false,
       "id": 13,
       "gridPos": {
@@ -974,11 +974,228 @@
     },
     {
       "type": "stat",
+      "title": "PV forecast today",
+      "description": "Expected PV generation of the whole day (Open-Meteo, calibrated per array).",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 6,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"})",
+          "legendFormat": "today",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "PV forecast tomorrow",
+      "description": "Expected PV generation tomorrow.",
+      "gridPos": {
+        "x": 6,
+        "y": 11,
+        "w": 6,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"})",
+          "legendFormat": "tomorrow",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Performance ratio per array",
+      "description": "Measured / modelled energy of the past days per array. Clearly below the others: shading, soiling or a defect.",
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 16,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_performance_ratio{array!=\"\"})",
+          "legendFormat": "{{array}}",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Now · heat pumps",
+      "collapsed": false,
+      "id": 17,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
       "title": "Outdoor temperature",
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1052,7 +1269,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 14,
+      "id": 18,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1088,7 +1305,7 @@
       "description": "",
       "gridPos": {
         "x": 4,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1162,7 +1379,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 15,
+      "id": 19,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1198,7 +1415,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1272,7 +1489,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 16,
+      "id": 20,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1308,7 +1525,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1381,7 +1598,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 17,
+      "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1417,7 +1634,7 @@
       "description": "",
       "gridPos": {
         "x": 16,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1482,7 +1699,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 18,
+      "id": 22,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1518,7 +1735,7 @@
       "description": "Seasonal performance factor: heat delivered / electricity used, lifetime.",
       "gridPos": {
         "x": 20,
-        "y": 11,
+        "y": 16,
         "w": 4,
         "h": 5
       },
@@ -1561,7 +1778,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 19,
+      "id": 23,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1595,22 +1812,22 @@
       "type": "row",
       "title": "History · energy flow",
       "collapsed": false,
-      "id": 20,
+      "id": 24,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "panels": []
     },
     {
       "type": "timeseries",
       "title": "Power",
-      "description": "Battery: positive = discharging, negative = charging. Grid: positive = import, negative = feed-in.",
+      "description": "Battery: positive = discharging, negative = charging. Grid: positive = import, negative = feed-in. Dashed: forecast PV power.",
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 22,
         "w": 16,
         "h": 9
       },
@@ -1702,6 +1919,31 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PV forecast"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    6
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -1720,7 +1962,7 @@
           "sort": "none"
         }
       },
-      "id": 21,
+      "id": 25,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1769,6 +2011,17 @@
           "range": true,
           "instant": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_pv_power_watts{array=\"total\"})",
+          "legendFormat": "PV forecast",
+          "range": true,
+          "instant": false,
+          "refId": "E"
         }
       ]
     },
@@ -1778,7 +2031,7 @@
       "description": "",
       "gridPos": {
         "x": 16,
-        "y": 17,
+        "y": 22,
         "w": 8,
         "h": 9
       },
@@ -1845,7 +2098,7 @@
           "sort": "none"
         }
       },
-      "id": 22,
+      "id": 26,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1870,7 +2123,7 @@
       "description": "Daily totals from the lifetime counters. Today's bar grows until midnight (day boundaries in UTC).",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -1983,7 +2236,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 23,
+      "id": 27,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2045,7 +2298,7 @@
       "description": "Electricity per heat pump and day, summed from the measured power (the heat pumps' energy counters are not updated continuously over Modbus).",
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 31,
         "w": 12,
         "h": 9
       },
@@ -2128,7 +2381,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 24,
+      "id": 28,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2164,12 +2417,12 @@
       "type": "row",
       "title": "History · heat pumps",
       "collapsed": false,
-      "id": 25,
+      "id": 29,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 40
       },
       "panels": []
     },
@@ -2179,7 +2432,7 @@
       "description": "Solid = flow, dashed = return.",
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 41,
         "w": 12,
         "h": 9
       },
@@ -2310,7 +2563,7 @@
           "sort": "none"
         }
       },
-      "id": 26,
+      "id": 30,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2368,7 +2621,7 @@
       "description": "Solid = actual, dashed = setpoint (charged up to it), dotted = minimum (a charge starts below it). The heat pump keeps the minimum at least 5 K below the setpoint.",
       "gridPos": {
         "x": 12,
-        "y": 36,
+        "y": 41,
         "w": 12,
         "h": 9
       },
@@ -2550,7 +2803,7 @@
           "sort": "none"
         }
       },
-      "id": 27,
+      "id": 31,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2630,7 +2883,7 @@
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2711,7 +2964,7 @@
           "sort": "none"
         }
       },
-      "id": 28,
+      "id": 32,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2747,7 +3000,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 45,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2828,7 +3081,7 @@
           "sort": "none"
         }
       },
-      "id": 29,
+      "id": 33,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2864,7 +3117,7 @@
       "description": "",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 58,
         "w": 12,
         "h": 5
       },
@@ -2920,7 +3173,7 @@
           "sort": "none"
         }
       },
-      "id": 30,
+      "id": 34,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2956,7 +3209,7 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 53,
+        "y": 58,
         "w": 12,
         "h": 5
       },
@@ -3020,7 +3273,7 @@
           "sort": "none"
         }
       },
-      "id": 31,
+      "id": 35,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3056,7 +3309,7 @@
       "description": "Heat / electricity per day, both summed from the measured power.",
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 63,
         "w": 12,
         "h": 8
       },
@@ -3139,7 +3392,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 32,
+      "id": 36,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3177,7 +3430,7 @@
       "description": "Heat delivered per heat pump and day, summed from the measured thermal power.",
       "gridPos": {
         "x": 12,
-        "y": 58,
+        "y": 63,
         "w": 12,
         "h": 8
       },
@@ -3260,7 +3513,7 @@
       },
       "interval": "1d",
       "timeFrom": "30d",
-      "id": 33,
+      "id": 37,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3296,12 +3549,12 @@
       "type": "row",
       "title": "Details · PV system",
       "collapsed": true,
-      "id": 38,
+      "id": 42,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 71
       },
       "panels": [
         {
@@ -3310,7 +3563,7 @@
           "description": "MPPT voltage × current.",
           "gridPos": {
             "x": 0,
-            "y": 67,
+            "y": 72,
             "w": 12,
             "h": 8
           },
@@ -3405,7 +3658,7 @@
               "sort": "none"
             }
           },
-          "id": 34,
+          "id": 38,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3452,7 +3705,7 @@
           "description": "Positive = import, negative = feed-in.",
           "gridPos": {
             "x": 12,
-            "y": 67,
+            "y": 72,
             "w": 12,
             "h": 8
           },
@@ -3547,7 +3800,7 @@
               "sort": "none"
             }
           },
-          "id": 35,
+          "id": 39,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3594,7 +3847,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 75,
+            "y": 80,
             "w": 12,
             "h": 8
           },
@@ -3675,7 +3928,7 @@
               "sort": "none"
             }
           },
-          "id": 36,
+          "id": 40,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3711,7 +3964,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 75,
+            "y": 80,
             "w": 12,
             "h": 8
           },
@@ -3806,7 +4059,7 @@
               "sort": "none"
             }
           },
-          "id": 37,
+          "id": 41,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3853,12 +4106,12 @@
       "type": "row",
       "title": "Details · heat pumps",
       "collapsed": true,
-      "id": 43,
+      "id": 47,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 67
+        "y": 72
       },
       "panels": [
         {
@@ -3867,7 +4120,7 @@
           "description": "Solid = high pressure, dashed = low pressure.",
           "gridPos": {
             "x": 0,
-            "y": 68,
+            "y": 73,
             "w": 12,
             "h": 8
           },
@@ -3997,7 +4250,7 @@
               "sort": "none"
             }
           },
-          "id": 39,
+          "id": 43,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4055,7 +4308,7 @@
           "description": "Solid = condensation, dashed = evaporation.",
           "gridPos": {
             "x": 12,
-            "y": 68,
+            "y": 73,
             "w": 12,
             "h": 8
           },
@@ -4186,7 +4439,7 @@
               "sort": "none"
             }
           },
-          "id": 40,
+          "id": 44,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4244,7 +4497,7 @@
           "description": "Solid = heat source (inlet), dashed = buffer tank.",
           "gridPos": {
             "x": 0,
-            "y": 76,
+            "y": 81,
             "w": 12,
             "h": 8
           },
@@ -4375,7 +4628,7 @@
               "sort": "none"
             }
           },
-          "id": 41,
+          "id": 45,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4433,7 +4686,7 @@
           "description": "Litres per minute.",
           "gridPos": {
             "x": 12,
-            "y": 76,
+            "y": 81,
             "w": 12,
             "h": 8
           },
@@ -4514,7 +4767,7 @@
               "sort": "none"
             }
           },
-          "id": 42,
+          "id": 46,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4550,12 +4803,12 @@
       "type": "row",
       "title": "Service · housevitals",
       "collapsed": true,
-      "id": 46,
+      "id": 50,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 73
       },
       "panels": [
         {
@@ -4564,7 +4817,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 69,
+            "y": 74,
             "w": 12,
             "h": 6
           },
@@ -4613,7 +4866,7 @@
               "sort": "none"
             }
           },
-          "id": 44,
+          "id": 48,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4660,7 +4913,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 69,
+            "y": 74,
             "w": 12,
             "h": 6
           },
@@ -4755,7 +5008,7 @@
               "sort": "none"
             }
           },
-          "id": 45,
+          "id": 49,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

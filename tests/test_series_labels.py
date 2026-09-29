@@ -97,4 +97,5 @@ def test_dashboard_queries_combine_series():
             for t in panel.get("targets", []):
                 for m in selector.finditer(t["expr"]):
                     before = t["expr"][:m.start()]
-                    assert before.endswith(("max by (appliance) (", "sum by (appliance) (increase(")), t["expr"]
+                    assert before.endswith(("max by (appliance) (", "sum by (appliance) (increase(",
+                                            "max by (array, day) (")), t["expr"]
