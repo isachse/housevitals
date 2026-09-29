@@ -23,6 +23,12 @@ class FakePrometheus:
     FN = re.compile(r"^(\w+)\((.*)\[(\w+)\]\)$")
     RAW = re.compile(r"^(.*)\[(\d+)s\]$")
     AGG = re.compile(r"^(max|min|sum|avg) by \(([^)]*)\) \((.*)\)$")
+    # sum/count over a subquery of power (optionally only while a state has a value)
+    SUBQ = re.compile(r"^(sum|count)_over_time\(\((.*)\)\[(\d+)s:(\d+)s\]\)$")
+    POINT = re.compile(r"^max by \(appliance\) \(([^()]*)\)$")
+    POINT_WHILE = re.compile(r"^max by \(appliance\) \(([^()]*)\) \* on\(appliance\) "
+                             r"\(max by \(appliance\) \(([^()]*)\) == bool (\d+)\)$")
+    LOOKBACK = 60.0
 
     def __init__(self):
         # (metric, appliance, instance) -> samples; several instances = several series
@@ -60,6 +66,37 @@ class FakePrometheus:
             out.append((labels, value))
         return out
 
+    def _instant_point(self, selector: str, t: float) -> dict[str, float]:
+        """Instant value per appliance (latest sample within the lookback, max over series)."""
+        out: dict[str, float] = {}
+        for (_, app, _), pts in self._match(selector).items():
+            recent = [v for ts, v in pts if t - self.LOOKBACK < ts <= t]
+            if recent:
+                out[app] = max(out.get(app, recent[-1]), recent[-1])
+        return out
+
+    def _subquery(self, fn: str, inner: str, window: float, step: float, t: float):
+        if m := self.POINT_WHILE.match(inner):
+            power_sel, state_sel, code = m.group(1), m.group(2), float(m.group(3))
+        elif m := self.POINT.match(inner):
+            power_sel, state_sel, code = m.group(1), None, None
+        else:
+            raise AssertionError(f"unsupported subquery {inner}")
+        values: dict[str, list[float]] = {}
+        k = int(t // step)
+        while k * step > t - window:
+            at = k * step
+            power = self._instant_point(power_sel, at)
+            state = self._instant_point(state_sel, at) if state_sel else None
+            for app, p in power.items():
+                if state is not None:
+                    if app not in state:
+                        continue
+                    p *= 1.0 if state[app] == code else 0.0
+                values.setdefault(app, []).append(p)
+            k -= 1
+        return [({"appliance": app}, sum(vs) if fn == "sum" else len(vs)) for app, vs in values.items()]
+
     def _vector(self, q: str, t: float):
         """Instant evaluation of FN or an aggregation over FN: [(labels, value)]."""
         if agg := self.AGG.match(q):
@@ -88,7 +125,11 @@ class FakePrometheus:
             data = {"resultType": "matrix", "result": list(series.values())}
         else:
             t = float(request.url.params["time"])
-            if self.AGG.match(q):
+            if m := self.SUBQ.match(q):
+                result = self._subquery(m.group(1), m.group(2), float(m.group(3)), float(m.group(4)), t)
+                data = {"resultType": "vector",
+                        "result": [{"metric": labels, "value": [t, str(v)]} for labels, v in result]}
+            elif self.AGG.match(q):
                 data = {"resultType": "vector",
                         "result": [{"metric": labels, "value": [t, str(v)]} for labels, v in self._vector(q, t)]}
             elif m := self.FN.match(q):
