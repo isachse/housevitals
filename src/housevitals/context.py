@@ -39,6 +39,8 @@ class Services:
         if config.forecast is not None and history is not None:
             measurements = PrometheusMeasurements(history, config.forecast.appliance, config.forecast.load)
             forecast = ForecastService(hub, config.forecast, measurements, svc.timezone)
+            if charts is not None:
+                charts.forecast = forecast
         return cls(config, hub, history, charts, overrides, forecast)
 
     async def close(self) -> None:

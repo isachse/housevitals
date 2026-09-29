@@ -319,7 +319,7 @@ class ForecastService:
             }
             intervals += self._resample(powers, resolution)
         return {**self.status(), "days": out_days, "resolution": resolution,
-                "note": "power is the mean over each interval (start given), in W; "
+                "note": "power is the mean over each interval (start given; ts = unix seconds), in W; "
                         "performance ratios are calibrated against the measured array power",
                 "intervals": intervals}
 
@@ -403,7 +403,7 @@ class ForecastService:
         out = []
         for start, items in sorted(buckets.items()):
             mean = {k: sum(i[k] for i in items) / len(items) for k in items[0]}
-            out.append({"start": self._iso(start), "pv_w": round(mean["total"]),
+            out.append({"start": self._iso(start), "ts": int(start), "pv_w": round(mean["total"]),
                         "per_array_w": {a.name: round(mean[a.name]) for a in self.config.arrays}})
         return out
 
@@ -416,7 +416,7 @@ class ForecastService:
         out = []
         for start, items in sorted(buckets.items()):
             n = len(items)
-            out.append({"start": self._iso(start),
+            out.append({"start": self._iso(start), "ts": int(start),
                         **{k: round(sum(i[k] for i in items) / n) for k in ("pv_w", "load_w", "export_w", "import_w")},
                         "soc": None if items[-1]["soc"] is None else round(items[-1]["soc"], 1)})
         return out

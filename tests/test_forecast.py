@@ -131,6 +131,7 @@ async def test_pv_forecast_days_and_resolution():
     assert hourly["days"][today]["remaining_kwh"] == 0  # evening
     peak = max((i for i in hourly["intervals"] if i["start"].startswith(tomorrow)), key=lambda i: i["pv_w"])
     assert peak["start"][11:13] in ("12", "13")  # around solar noon (≈ 12:57 CEST)
+    assert datetime.fromisoformat(peak["start"]).timestamp() == peak["ts"]  # epoch for Grafana
     quarter = await service.pv_forecast("tomorrow", "15m")
     assert len(quarter["intervals"]) == 96 and list(quarter["days"]) == [tomorrow]
     with pytest.raises(ForecastRequestError):
@@ -223,3 +224,35 @@ async def test_mcp_and_rest():
         assert (await c.get("/api/v1/forecast/pv?resolution=5m")).status_code == 422  # validated by FastAPI
         surplus = (await c.get("/api/v1/forecast/surplus?resolution=1h")).json()
         assert surplus["windows"] and surplus["intervals"]
+
+
+async def test_pv_forecast_chart():
+    from housevitals.charts import ChartService, UnknownChartError
+    from housevitals.history import HistoryError
+
+    service = _service(_answer(), ratios={"south": 0.8, "flat": 0.6})
+
+    class NoHistory:  # Prometheus down: the chart still shows the forecast
+        tz = TZ
+
+        class prometheus:
+            @staticmethod
+            def open():
+                return False
+
+        def now(self):
+            return datetime.fromtimestamp(NOW, TZ)
+
+        async def history(self, *args, **kwargs):
+            raise HistoryError("no data in this time range")
+
+    charts = ChartService(service.hub, NoHistory())
+    assert "pv_forecast" not in [c["chart"] for c in charts.catalog()]  # no forecast configured
+    with pytest.raises(UnknownChartError, match="forecast"):
+        await charts.get("pv_forecast")
+    charts.forecast = service
+    assert "pv_forecast" in [c["chart"] for c in charts.catalog()]
+    image = await charts.get("pv_forecast", lang="de")
+    assert image.png.startswith(b"\x89PNG") and image.summary["windows"]
+    assert image.summary["battery"]["full_at"].startswith("2026-09-30")
+    assert image.summary["measured_today_kwh"] == 0  # no measured values available

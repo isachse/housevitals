@@ -358,7 +358,8 @@ battery is export; windows of export above `surplus_threshold_w` are reported.
 | MCP | `get_pv_forecast` (energy per day and power per hour or quarter hour, per array), `get_surplus_windows` (battery full time, windows, energy per day, optionally the simulated course) |
 | REST | `GET /api/v1/forecast` (status, calibrated arrays), `/api/v1/forecast/pv?day=&resolution=1h\|15m`, `/api/v1/forecast/surplus?threshold_w=&resolution=` |
 | Metrics | `housevitals_forecast_pv_power_watts{array}` (forecast for the running quarter hour, per array and `total`), `housevitals_forecast_pv_energy_kWh{day="today"\|"tomorrow"}`, `housevitals_forecast_performance_ratio{array}`, `housevitals_forecast_age_seconds` |
-| Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart, to compare with the measured power |
+| Charts | `pv_forecast`: today and tomorrow with measured and forecast PV, expected load, surplus windows and state of charge (see [Charts](#charts)) |
+| Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart; dashboard **PV-Prognose** / **PV forecast** for today and tomorrow (see [Grafana dashboard](#grafana-dashboard)) |
 
 If Open-Meteo is unreachable, the previous forecast stays in use and is marked
 `stale` with `last_error`; without any forecast yet the endpoints return `503`.
@@ -381,6 +382,7 @@ Prometheus is unreachable, the last image is returned with `"stale": true`.
 | `heatpump` (per heat pump) | flow/return, hot water, outdoor temperature; compressor demand band | 24h | 1h–7d | 5 min |
 | `heatpump_spf` | performance factor per month and heat pump | 365d | 31d–1826d | 6 h |
 | `compressor_cycles` | runtime hours and starts per day and heat pump | 7d | 2d–31d | 30 min |
+| `pv_forecast` | today and tomorrow: measured and forecast PV, expected load, surplus windows; state of charge below (only with a `forecast` section) | 2d | fixed | 15 min |
 
 Chart texts follow the `lang` argument (the LLM passes the user's language), default
 `lang` from the config; background rendering uses the configured language. Each
@@ -631,7 +633,13 @@ Settings changed in `/opt/homebrew/etc/grafana/grafana.ini`:
 | `[auth.anonymous]` | `enabled = true` (read-only viewer without login for everyone who can reach Grafana) |
 | `[analytics]`, `[news]` | usage reporting, update checks and news feed off |
 
+The PV forecast dashboard reads forecasts from the REST API (Prometheus holds no
+future values) through the Infinity data-source plugin; its data source is provisioned
+in [housevitals-api.yaml](deploy/grafana/provisioning/datasources/housevitals-api.yaml)
+(REST API on `127.0.0.1:8080`; adjust `url`s in the generator and `allowedHosts` if it differs):
+
 ```bash
+grafana cli --homepath /opt/homebrew/opt/grafana/share/grafana --pluginsDir /opt/homebrew/var/lib/grafana/plugins plugins install yesoreyeram-infinity-datasource
 brew services start grafana
 ```
 
@@ -642,7 +650,8 @@ Prometheus data-source plugin on first start; if the data source reports "plugin
 registered", restart Grafana once.
 
 The dashboards **Haus · Energie & Wärmepumpen** (German, home dashboard) and **Home ·
-Energy & heat pumps** (English, `home-energy-en`) are generated and link to each other.
+Energy & heat pumps** (English, `home-energy-en`) are generated and link to each other,
+as do **Haus · PV-Prognose** (`pv-forecast`) and **Home · PV forecast** (`pv-forecast-en`).
 The German one is the source; the English one replaces only display texts via the
 table `TRANSLATIONS` (the generator fails on any untranslated text). Edit
 [tools/build_grafana_dashboard.py](tools/build_grafana_dashboard.py), then:
@@ -660,6 +669,7 @@ Grafana picks up the new JSON within 30 seconds. Layout (English section names; 
 | History · energy flow | power flow (PV/house/battery/grid), state of charge, energy per day |
 | History · heat pumps | flow/return, hot water vs. setpoint, power, outdoor temperature, compressor and demand timelines, SPF and heat per day |
 | Details (collapsed) | PV strings, grid per phase, temperatures, refrigerant circuit, heat source, buffer, service health |
+| PV forecast (own dashboard) | today 00:00 to tomorrow 24:00: forecast today/tomorrow, generation today, state of charge; measured and forecast PV (dashed), expected load, surplus as a green area, state of charge measured and forecast (right axis) |
 
 "Now" tiles show the current value (only while the appliance answers), daily bars always the last 30 days; all other
 charts follow the selected time range. Each appliance and energy flow keeps one fixed
