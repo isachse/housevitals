@@ -2,6 +2,40 @@
  "name": "neo",
  "description": "Brötje BLW NEO (Heliotherm-based) via NEO-RKM or RS232-to-Modbus-TCP interface",
  "source": "Register layout per Brötje NEO-RKM manual; decoding cross-checked against community integrations",
+ "power_integration": {
+  "electricity_total": {
+   "power": "electrical_power",
+   "to_kw": 0.001
+  },
+  "electricity_heating": {
+   "power": "electrical_power",
+   "to_kw": 0.001,
+   "state": "compressor_demand",
+   "value": 20
+  },
+  "electricity_dhw": {
+   "power": "electrical_power",
+   "to_kw": 0.001,
+   "state": "compressor_demand",
+   "value": 30
+  },
+  "heat_delivered_total": {
+   "power": "thermal_power",
+   "to_kw": 1
+  },
+  "heat_delivered_heating": {
+   "power": "thermal_power",
+   "to_kw": 1,
+   "state": "compressor_demand",
+   "value": 20
+  },
+  "heat_delivered_dhw": {
+   "power": "thermal_power",
+   "to_kw": 1,
+   "state": "compressor_demand",
+   "value": 30
+  }
+ },
  "registers": [
   {
    "key": "outdoor_temperature",

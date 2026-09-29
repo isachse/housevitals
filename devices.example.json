@@ -42,7 +42,8 @@
           "max_duration_s": 21600,
           "max_writes_per_day": 6
         }
-      }
+      },
+      "energy_from_power": true
     },
     {
       "name": "garage",

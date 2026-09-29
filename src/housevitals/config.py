@@ -91,13 +91,17 @@ class DeviceConfig:
     min_request_interval: float = 0.0
     # Registers that may be overridden (written) through the control API, by key.
     overrides: dict[str, OverrideRule] = field(default_factory=dict)
+    # Energy statistics from integrated power instead of the device's energy counters
+    # (for devices whose counters are not updated over Modbus; see the profile's
+    # power_integration).
+    energy_from_power: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceConfig:
         unknown = set(data) - {
             "name", "host", "port", "unit_id", "profile", "zones", "timeout",
             "aliases", "description", "poll_interval", "extra_keys", "min_request_interval",
-            "overrides",
+            "overrides", "energy_from_power",
         }
         if unknown:
             raise ConfigError(f"Unknown device option(s): {', '.join(sorted(unknown))}")
@@ -130,6 +134,7 @@ class DeviceConfig:
                 str(key): OverrideRule.from_dict(f"Device '{data['name']}', override '{key}'", rule)
                 for key, rule in (data.get("overrides") or {}).items()
             },
+            energy_from_power=bool(data.get("energy_from_power", False)),
         )
 
 
