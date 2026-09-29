@@ -16,6 +16,7 @@ from housevitals.overrides import (
     OverrideConflictError,
     OverrideError,
     OverrideManager,
+    OverrideRejectedError,
     WriteBudgetError,
 )
 from housevitals.service import build_app, load_control_token
@@ -33,7 +34,8 @@ def _config(port, state_file, **rule):
     device = DeviceConfig(name="hp", host="127.0.0.1", port=port, profile="neo",
                           aliases=["wp2"], timeout=2, overrides=rules)
     return ServerConfig(devices=[device],
-                        service=ServiceConfig(override_state_file=str(state_file)))
+                        service=ServiceConfig(override_state_file=str(state_file),
+                                              override_verify_delay_s=0.05))
 
 
 def _manager(port, tmp_path, **rule):
@@ -307,3 +309,75 @@ async def test_poll_overlapping_a_write_does_not_bring_back_the_old_value(neo_de
     assert app.cache["dhw_setpoint_min"].data["value"] == 50
     assert app.cache["flow_temperature"].data["value"] == 34.5  # other values still stored
     await hub.stop()
+
+
+def _clamping(app, key="dhw_setpoint_min", limit=45.0):
+    """Make the simulated device behave like the NEO: it accepts a write and limits the
+    value shortly afterwards (here: to `limit`)."""
+    reg = app.profile.registers[key]
+    real_write = app.write
+
+    async def write(register, raw):
+        result = await real_write(register, raw)
+        if register.key == key and raw * reg.scale > limit:
+            async def clamp():
+                await asyncio.sleep(0.01)
+                await app.client.write_register(reg.address, round(limit / reg.scale))
+            asyncio.get_running_loop().create_task(clamp())
+        return result
+
+    app.write = write
+
+
+async def test_value_adjusted_by_the_device_is_refused_and_undone(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    _clamping(hub.get("hp"))
+    with pytest.raises(OverrideRejectedError) as err:
+        await mgr.apply("hp", "dhw_setpoint_min", 55, OWNER, duration_s=3600)
+    assert err.value.status == 422
+    assert err.value.details == {"requested": 55.0, "device_value": 45.0, "restored": 42.0}
+    assert await _device_value(hub) == 42  # previous value written back
+    assert mgr.leases == {}  # no override the caller would wrongly rely on
+    assert mgr.writes_total[("hp", "dhw_setpoint_min")] == 2  # the write and the undo
+
+    # A value within the device's limit still works.
+    ok = await mgr.apply("hp", "dhw_setpoint_min", 44, OWNER, duration_s=3600)
+    assert ok["written"] is True and await _device_value(hub) == 44
+    await hub.stop()
+
+
+async def test_restore_value_is_written_at_the_end(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    result = await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600, restore_value=43)
+    assert result["baseline"] == 42 and result["restore_value"] == 43
+    with pytest.raises(OverrideError, match="between 40 and 55"):
+        await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600, restore_value=60)
+
+    # survives a restart
+    hub2 = Hub(_config(neo_device, tmp_path / "overrides.json"))
+    mgr2 = OverrideManager(hub2, tmp_path / "overrides.json")
+    assert mgr2.leases[("hp", "dhw_setpoint_min")].restore_value == 43
+    released = await mgr2.release("hp", "dhw_setpoint_min", OWNER)
+    assert released["outcome"] == "restored"
+    assert await _device_value(hub2) == 43
+    await hub.stop()
+    await hub2.stop()
+
+
+async def test_control_api_restore_value_and_refusal(neo_device, tmp_path):
+    config = _config(neo_device, tmp_path / "overrides.json")
+    services = Services.create(config)
+    app = build_app(config, services, metric_readers=[], control_token=TOKEN)
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    url = "/api/v1/appliances/hp/overrides/dhw_setpoint_min"
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1") as c:
+        put = await c.put(url, headers=headers, json={"value": 42, "restore_value": 42, "duration_s": 60,
+                                                      "owner": "manual/fix", "reason": "correct setpoint"})
+        assert put.status_code == 200 and put.json()["restore_value"] == 42
+        assert (await c.delete(url, headers=headers, params={"owner": "manual/fix"})).status_code == 200
+
+        _clamping(services.hub.get("hp"))
+        refused = await c.put(url, headers=headers, json={"value": 55, "duration_s": 60, "owner": OWNER})
+        assert refused.status_code == 422
+        assert refused.json()["device_value"] == 45.0 and refused.json()["restored"] == 42.0
+    await services.close()
