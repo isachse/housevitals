@@ -10,7 +10,6 @@ instead of frozen lines.
 from __future__ import annotations
 
 import logging
-import socket
 import threading
 import time
 from collections import deque
@@ -340,7 +339,7 @@ def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None,
     resource = Resource.create({
         "service.name": "housevitals",
         "service.version": __version__,
-        "service.instance.id": socket.gethostname(),
+        "service.instance.id": service.instance_id,
     })
     provider = MeterProvider(resource=resource, metric_readers=readers)
     register_instruments(provider.get_meter("housevitals", __version__), hub, overrides)

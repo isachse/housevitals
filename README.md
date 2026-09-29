@@ -258,6 +258,7 @@ Modbus TCP ◄── poller (one serialised connection per appliance) ──► 
 | `on_demand_ttl` | `10` | Cache lifetime for registers outside the poll plan |
 | `prometheus_url` | – (disabled) | Prometheus for the history tools, e.g. `http://127.0.0.1:9090` |
 | `timezone` | `Europe/Berlin` | Time zone for calendar days/months in `get_energy` and the daily write budget of overrides |
+| `instance_id` | `housevitals` | Prometheus `instance` label of all metrics; keep it fixed (see below) |
 | `control_token_file` | – | File with the bearer token for writing overrides (or env `HOUSEVITALS_CONTROL_TOKEN`); without a token the control API is read-only |
 | `override_state_file` | `~/.local/state/housevitals/overrides.json` | Active overrides and today's write counts, kept across restarts |
 
@@ -459,6 +460,26 @@ increase(housevitals_pv_energy_kWh_total[1d])
      + increase(housevitals_import_energy_kWh_total[7d]))
 ```
 
+### One data point, several series
+
+Prometheus identifies a series by all of its labels. If any label other than
+`appliance` changes, the data point continues in a new series and the old one stops.
+This happened when the host name, then used as the `instance` label, changed (macOS
+derives it from the router's DNS name unless a HostName is set); Grafana showed two
+lines for a few minutes after the switch.
+
+To keep this from mattering:
+
+- The `instance` label is the fixed `service.instance_id` (default `housevitals`)
+  instead of the host name, and Prometheus promotes no resource attributes such as
+  `service.version`, so updates do not start new series.
+- All queries combine the series of each appliance: `get_history`, `get_runtime`,
+  `get_energy`, the charts and the Grafana dashboards (momentary values by `max`,
+  increases by `sum`, counter readings by their highest value). Earlier series
+  therefore stay part of the history without migration.
+- `--query.lookback-delta=1m` (default 5 min) shortens the time in which a stopped
+  series still shows its last value; the service exports every 15 s.
+
 ### Renamed from broetje-mcp / home-modbus
 
 The project was renamed on 2026-09-27: package `housevitals`, commands `housevitals`
@@ -486,10 +507,12 @@ brew install prometheus
 --web.enable-otlp-receiver
 --storage.tsdb.retention.time=10y
 --storage.tsdb.retention.size=20GB
+--query.lookback-delta=1m
 ```
 
 `/opt/homebrew/etc/prometheus.yml` additionally contains
-`storage.tsdb.out_of_order_time_window: 30m` and promotes `service.version`. Start it:
+`storage.tsdb.out_of_order_time_window: 30m`. It promotes no resource attributes to
+labels (see [One data point, several series](#one-data-point-several-series)). Start it:
 
 ```bash
 brew services start prometheus

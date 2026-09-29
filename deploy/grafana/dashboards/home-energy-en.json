@@ -142,7 +142,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_pv_power_watts{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_pv_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "PV",
           "range": false,
           "instant": true,
@@ -225,7 +225,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_load_power_watts{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_load_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "House",
           "range": false,
           "instant": true,
@@ -308,7 +308,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_battery_power_watts{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_battery_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "Battery",
           "range": false,
           "instant": true,
@@ -394,7 +394,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_battery_soc_percent{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "State of charge",
           "range": false,
           "instant": true,
@@ -477,7 +477,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_grid_power_watts{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_grid_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "Grid",
           "range": false,
           "instant": true,
@@ -563,7 +563,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(1 - housevitals_daily_import_energy_kWh{appliance=\"inverter\"} / (housevitals_daily_direct_consumption_kWh{appliance=\"inverter\"} + housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"} + housevitals_daily_import_energy_kWh{appliance=\"inverter\"})) and on(appliance) housevitals_up == 1",
+          "expr": "(1 - max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}) / (max by (appliance) (housevitals_daily_direct_consumption_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}))) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "Self-sufficiency",
           "range": false,
           "instant": true,
@@ -631,7 +631,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_daily_pv_energy_kWh{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_daily_pv_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "PV",
           "range": false,
           "instant": true,
@@ -699,7 +699,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_daily_import_energy_kWh{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "Import",
           "range": false,
           "instant": true,
@@ -767,7 +767,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_daily_export_energy_kWh{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_daily_export_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "Feed-in",
           "range": false,
           "instant": true,
@@ -835,7 +835,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_daily_battery_charge_kWh{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_daily_battery_charge_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "charged",
           "range": false,
           "instant": true,
@@ -846,7 +846,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "discharged",
           "range": false,
           "instant": true,
@@ -929,7 +929,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_up{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump1\"})",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -940,7 +940,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_up{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump2\"})",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -951,7 +951,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_up{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_up{appliance=\"inverter\"})",
           "legendFormat": "Inverter",
           "range": false,
           "instant": true,
@@ -1063,7 +1063,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1074,7 +1074,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1173,7 +1173,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_flow_temperature_celsius{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1184,7 +1184,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_flow_temperature_celsius{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1283,7 +1283,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1294,7 +1294,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1392,7 +1392,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_electrical_power_watts{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1403,7 +1403,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_electrical_power_watts{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1493,7 +1493,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_compressor{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_compressor{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1504,7 +1504,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_compressor{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_compressor{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1572,7 +1572,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"} / housevitals_electricity_kWh_total{appliance=\"heatpump1\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1583,7 +1583,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"} / housevitals_electricity_kWh_total{appliance=\"heatpump2\"}) and on(appliance) housevitals_up == 1",
+          "expr": "(max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1731,7 +1731,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_pv_power_watts{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_pv_power_watts{appliance=\"inverter\"})",
           "legendFormat": "PV",
           "range": true,
           "instant": false,
@@ -1742,7 +1742,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_load_power_watts{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_load_power_watts{appliance=\"inverter\"})",
           "legendFormat": "House",
           "range": true,
           "instant": false,
@@ -1753,7 +1753,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_battery_power_watts{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_battery_power_watts{appliance=\"inverter\"})",
           "legendFormat": "Battery",
           "range": true,
           "instant": false,
@@ -1764,7 +1764,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_grid_power_watts{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_grid_power_watts{appliance=\"inverter\"})",
           "legendFormat": "Grid",
           "range": true,
           "instant": false,
@@ -1856,7 +1856,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_battery_soc_percent{appliance=\"inverter\"}",
+          "expr": "max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"})",
           "legendFormat": "State of charge",
           "range": true,
           "instant": false,
@@ -1994,7 +1994,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_pv_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_pv_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d))",
           "legendFormat": "PV generation",
           "range": true,
           "instant": false,
@@ -2006,7 +2006,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_direct_consumption_kWh_total{appliance=\"inverter\"}[1d] offset -1d) + increase(housevitals_battery_discharge_kWh_total{appliance=\"inverter\"}[1d] offset -1d) + increase(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_direct_consumption_kWh_total{appliance=\"inverter\"}[1d] offset -1d)) + sum by (appliance) (increase(housevitals_battery_discharge_kWh_total{appliance=\"inverter\"}[1d] offset -1d)) + sum by (appliance) (increase(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d))",
           "legendFormat": "House consumption",
           "range": true,
           "instant": false,
@@ -2018,7 +2018,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d))",
           "legendFormat": "Grid import",
           "range": true,
           "instant": false,
@@ -2030,7 +2030,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_export_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_export_energy_kWh_total{appliance=\"inverter\"}[1d] offset -1d))",
           "legendFormat": "Feed-in",
           "range": true,
           "instant": false,
@@ -2139,7 +2139,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2151,7 +2151,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -2321,7 +2321,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_flow_temperature_celsius{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump1\"})",
           "legendFormat": "HP1 Flow",
           "range": true,
           "instant": false,
@@ -2332,7 +2332,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_flow_temperature_celsius{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump2\"})",
           "legendFormat": "HP2 Flow",
           "range": true,
           "instant": false,
@@ -2343,7 +2343,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_return_temperature_celsius{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_return_temperature_celsius{appliance=\"heatpump1\"})",
           "legendFormat": "HP1 Return",
           "range": true,
           "instant": false,
@@ -2354,7 +2354,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_return_temperature_celsius{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_return_temperature_celsius{appliance=\"heatpump2\"})",
           "legendFormat": "HP2 Return",
           "range": true,
           "instant": false,
@@ -2510,7 +2510,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"})",
           "legendFormat": "HP1 Hot water",
           "range": true,
           "instant": false,
@@ -2521,7 +2521,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"})",
           "legendFormat": "HP2 Hot water",
           "range": true,
           "instant": false,
@@ -2532,7 +2532,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_dhw_setpoint_max_celsius{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_max_celsius{appliance=\"heatpump1\"})",
           "legendFormat": "HP1 setpoint",
           "range": true,
           "instant": false,
@@ -2543,7 +2543,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_dhw_setpoint_max_celsius{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_max_celsius{appliance=\"heatpump2\"})",
           "legendFormat": "HP2 setpoint",
           "range": true,
           "instant": false,
@@ -2649,7 +2649,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_electrical_power_watts{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"})",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2660,7 +2660,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_electrical_power_watts{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"})",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -2766,7 +2766,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"})",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2777,7 +2777,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"})",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -2858,7 +2858,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_compressor{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_compressor{appliance=\"heatpump1\"})",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2869,7 +2869,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_compressor{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_compressor{appliance=\"heatpump2\"})",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -2958,7 +2958,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_compressor_demand{appliance=\"heatpump1\"}",
+          "expr": "max by (appliance) (housevitals_compressor_demand{appliance=\"heatpump1\"})",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2969,7 +2969,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "housevitals_compressor_demand{appliance=\"heatpump2\"}",
+          "expr": "max by (appliance) (housevitals_compressor_demand{appliance=\"heatpump2\"})",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3077,7 +3077,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d) / increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3089,7 +3089,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d) / increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3198,7 +3198,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3210,7 +3210,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)",
+          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3343,7 +3343,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_mppt1_voltage_volts{appliance=\"inverter\"} * housevitals_mppt1_current_amperes{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_mppt1_voltage_volts{appliance=\"inverter\"}) * max by (appliance) (housevitals_mppt1_current_amperes{appliance=\"inverter\"})",
               "legendFormat": "String 1",
               "range": true,
               "instant": false,
@@ -3354,7 +3354,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_mppt2_voltage_volts{appliance=\"inverter\"} * housevitals_mppt2_current_amperes{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_mppt2_voltage_volts{appliance=\"inverter\"}) * max by (appliance) (housevitals_mppt2_current_amperes{appliance=\"inverter\"})",
               "legendFormat": "String 2",
               "range": true,
               "instant": false,
@@ -3365,7 +3365,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_mppt3_voltage_volts{appliance=\"inverter\"} * housevitals_mppt3_current_amperes{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_mppt3_voltage_volts{appliance=\"inverter\"}) * max by (appliance) (housevitals_mppt3_current_amperes{appliance=\"inverter\"})",
               "legendFormat": "String 3",
               "range": true,
               "instant": false,
@@ -3485,7 +3485,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_grid_power_a_watts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_grid_power_a_watts{appliance=\"inverter\"})",
               "legendFormat": "L1",
               "range": true,
               "instant": false,
@@ -3496,7 +3496,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_grid_power_b_watts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_grid_power_b_watts{appliance=\"inverter\"})",
               "legendFormat": "L2",
               "range": true,
               "instant": false,
@@ -3507,7 +3507,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_grid_power_c_watts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_grid_power_c_watts{appliance=\"inverter\"})",
               "legendFormat": "L3",
               "range": true,
               "instant": false,
@@ -3613,7 +3613,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_inverter_temperature_celsius{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_inverter_temperature_celsius{appliance=\"inverter\"})",
               "legendFormat": "Inverter",
               "range": true,
               "instant": false,
@@ -3624,7 +3624,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_battery_temperature_celsius{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_battery_temperature_celsius{appliance=\"inverter\"})",
               "legendFormat": "Battery",
               "range": true,
               "instant": false,
@@ -3744,7 +3744,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_phase_a_voltage_volts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_phase_a_voltage_volts{appliance=\"inverter\"})",
               "legendFormat": "L1",
               "range": true,
               "instant": false,
@@ -3755,7 +3755,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_phase_b_voltage_volts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_phase_b_voltage_volts{appliance=\"inverter\"})",
               "legendFormat": "L2",
               "range": true,
               "instant": false,
@@ -3766,7 +3766,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_phase_c_voltage_volts{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_phase_c_voltage_volts{appliance=\"inverter\"})",
               "legendFormat": "L3",
               "range": true,
               "instant": false,
@@ -3935,7 +3935,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_high_pressure_bar{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_high_pressure_bar{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 high pressure",
               "range": true,
               "instant": false,
@@ -3946,7 +3946,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_high_pressure_bar{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_high_pressure_bar{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 high pressure",
               "range": true,
               "instant": false,
@@ -3957,7 +3957,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_low_pressure_bar{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_low_pressure_bar{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 low pressure",
               "range": true,
               "instant": false,
@@ -3968,7 +3968,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_low_pressure_bar{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_low_pressure_bar{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 low pressure",
               "range": true,
               "instant": false,
@@ -4124,7 +4124,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_condensation_temperature_celsius{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_condensation_temperature_celsius{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 condensation",
               "range": true,
               "instant": false,
@@ -4135,7 +4135,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_condensation_temperature_celsius{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_condensation_temperature_celsius{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 condensation",
               "range": true,
               "instant": false,
@@ -4146,7 +4146,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_evaporation_temperature_celsius{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_evaporation_temperature_celsius{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 evaporation",
               "range": true,
               "instant": false,
@@ -4157,7 +4157,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_evaporation_temperature_celsius{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_evaporation_temperature_celsius{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 evaporation",
               "range": true,
               "instant": false,
@@ -4313,7 +4313,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_source_inlet_temperature_celsius{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_source_inlet_temperature_celsius{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 source inlet",
               "range": true,
               "instant": false,
@@ -4324,7 +4324,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_source_inlet_temperature_celsius{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_source_inlet_temperature_celsius{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 source inlet",
               "range": true,
               "instant": false,
@@ -4335,7 +4335,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_buffer_temperature_celsius{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_buffer_temperature_celsius{appliance=\"heatpump1\"})",
               "legendFormat": "HP1 buffer",
               "range": true,
               "instant": false,
@@ -4346,7 +4346,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_buffer_temperature_celsius{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_buffer_temperature_celsius{appliance=\"heatpump2\"})",
               "legendFormat": "HP2 buffer",
               "range": true,
               "instant": false,
@@ -4452,7 +4452,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_flow_rate_l_per_min{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_flow_rate_l_per_min{appliance=\"heatpump1\"})",
               "legendFormat": "HP1",
               "range": true,
               "instant": false,
@@ -4463,7 +4463,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_flow_rate_l_per_min{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_flow_rate_l_per_min{appliance=\"heatpump2\"})",
               "legendFormat": "HP2",
               "range": true,
               "instant": false,
@@ -4551,7 +4551,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_up{appliance=\"heatpump1\"}",
+              "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump1\"})",
               "legendFormat": "HP1",
               "range": true,
               "instant": false,
@@ -4562,7 +4562,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_up{appliance=\"heatpump2\"}",
+              "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump2\"})",
               "legendFormat": "HP2",
               "range": true,
               "instant": false,
@@ -4573,7 +4573,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_up{appliance=\"inverter\"}",
+              "expr": "max by (appliance) (housevitals_up{appliance=\"inverter\"})",
               "legendFormat": "Inverter",
               "range": true,
               "instant": false,
@@ -4693,7 +4693,7 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "housevitals_poll_duration_seconds{group=\"fast\"}",
+              "expr": "max by (appliance) (housevitals_poll_duration_seconds{group=\"fast\"})",
               "legendFormat": "{{appliance}}",
               "range": true,
               "instant": false,
