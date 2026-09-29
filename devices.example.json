@@ -13,6 +13,7 @@
     "on_demand_ttl": 10,
     "prometheus_url": "http://127.0.0.1:9090",
     "timezone": "Europe/Berlin",
+    "instance_id": "housevitals",
     "control_token_file": "~/.config/housevitals/control.token",
     "override_state_file": "~/.local/state/housevitals/overrides.json"
   },
