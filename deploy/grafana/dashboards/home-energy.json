@@ -2364,7 +2364,7 @@
     {
       "type": "timeseries",
       "title": "Warmwasser",
-      "description": "Durchgezogen = Ist, gestrichelt = Sollwert.",
+      "description": "Durchgezogen = Ist, gestrichelt = Sollwert (bis dahin wird geladen), gepunktet = Minimum (darunter startet eine Ladung). Die Wärmepumpe lässt das Minimum höchstens 5 K unter dem Sollwert zu.",
       "gridPos": {
         "x": 12,
         "y": 36,
@@ -2398,6 +2398,7 @@
           "color": {
             "mode": "palette-classic"
           },
+          "min": 35,
           "decimals": 1
         },
         "overrides": [
@@ -2480,6 +2481,56 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP1 Minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dot",
+                  "dash": [
+                    0,
+                    6
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP2 Minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dot",
+                  "dash": [
+                    0,
+                    6
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -2547,6 +2598,28 @@
           "range": true,
           "instant": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_min_celsius{appliance=\"heatpump1\"})",
+          "legendFormat": "WP1 Minimum",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_min_celsius{appliance=\"heatpump2\"})",
+          "legendFormat": "WP2 Minimum",
+          "range": true,
+          "instant": false,
+          "refId": "F"
         }
       ]
     },

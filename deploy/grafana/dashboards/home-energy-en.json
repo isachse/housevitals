@@ -2365,7 +2365,7 @@
     {
       "type": "timeseries",
       "title": "Hot water",
-      "description": "Solid = actual, dashed = setpoint.",
+      "description": "Solid = actual, dashed = setpoint (charged up to it), dotted = minimum (a charge starts below it). The heat pump keeps the minimum at least 5 K below the setpoint.",
       "gridPos": {
         "x": 12,
         "y": 36,
@@ -2399,6 +2399,7 @@
           "color": {
             "mode": "palette-classic"
           },
+          "min": 35,
           "decimals": 1
         },
         "overrides": [
@@ -2481,6 +2482,56 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP1 minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dot",
+                  "dash": [
+                    0,
+                    6
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP2 minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dot",
+                  "dash": [
+                    0,
+                    6
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -2548,6 +2599,28 @@
           "range": true,
           "instant": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_min_celsius{appliance=\"heatpump1\"})",
+          "legendFormat": "HP1 minimum",
+          "range": true,
+          "instant": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (housevitals_dhw_setpoint_min_celsius{appliance=\"heatpump2\"})",
+          "legendFormat": "HP2 minimum",
+          "range": true,
+          "instant": false,
+          "refId": "F"
         }
       ]
     },
