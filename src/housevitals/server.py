@@ -85,6 +85,14 @@ def _instructions(services: Services) -> str:
             "image with stale=true, generated_at and a visible 'outdated' badge; tell the "
             "user how old it is. Live values keep working during such an outage."
         )
+    if services.forecast is not None:
+        text += (
+            " Forecasts (Open-Meteo weather, calibrated against the recorded PV power): "
+            "get_pv_forecast (PV energy today/tomorrow and power per hour or quarter hour, "
+            "per array) and get_surplus_windows (battery simulation: when the battery will be "
+            "full and when surplus is expected to be exported, with energy and power). "
+            "Forecasts are estimates; say so and give the issue time when it matters."
+        )
     return text
 
 
@@ -228,6 +236,8 @@ def build_server(source: Services | ServerConfig) -> MCPServer:
         _history_tools(tool, services, ApplianceArg, AllAppliancesArg)
     if services.charts is not None:
         _chart_tool(tool, services, known_desc)
+    if services.forecast is not None:
+        _forecast_tools(tool, services)
     return mcp
 
 
@@ -304,6 +314,42 @@ def _history_tools(tool, services: Services, ApplianceArg, AllAppliancesArg) -> 
             end: End of the range (default now).
         """
         return await history.runtime(hub.get(appliance), key, start, end, LANG)
+
+
+def _forecast_tools(tool, services: Services) -> None:
+    forecast = services.forecast
+    DayArg = Annotated[str, Field(description='"today", "tomorrow" or an ISO date; empty = both.')]
+    ResolutionArg = Annotated[str, Field(description='"1h" (default) or "15m".')]
+
+    @tool
+    @_reports_errors
+    async def get_pv_forecast(day: DayArg = "", resolution: ResolutionArg = "1h") -> dict[str, Any]:
+        """PV forecast from Open-Meteo weather: energy per day (today: whole day and remaining),
+        per array, and mean power per hour or quarter hour. Each array's model is calibrated
+        against its measured power (performance_ratio). Includes the forecast issue time.
+
+        Args:
+            day: today, tomorrow or an ISO date; empty for both days.
+            resolution: 1h or 15m.
+        """
+        return await forecast.pv_forecast(day, resolution)
+
+    @tool
+    @_reports_errors
+    async def get_surplus_windows(
+        threshold_w: Annotated[float, Field(description="Minimum expected export in W for a window; 0 = configured default.")] = 0,
+        resolution: Annotated[str, Field(description='Empty = windows and day totals only; "1h" or "15m" adds the simulated course (PV, load, export, import, battery state of charge).')] = "",
+    ) -> dict[str, Any]:
+        """Expected PV surplus from now to the end of tomorrow: simulates the battery (state of
+        charge, charge/discharge limits) with the PV forecast and the house's typical load
+        per quarter hour. Returns when the battery will be full, windows of expected grid
+        export (start, end, energy, mean and peak power) and energy per day.
+
+        Args:
+            threshold_w: Minimum export for a surplus window (W).
+            resolution: Add the simulated course at 1h or 15m.
+        """
+        return await forecast.surplus(threshold_w, resolution)
 
 
 def _chart_tool(tool, services: Services, known_desc: str) -> None:

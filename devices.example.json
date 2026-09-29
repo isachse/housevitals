@@ -69,5 +69,31 @@
       "unit_id": 1,
       "profile": "sungrow_sh"
     }
-  ]
+  ],
+  "forecast": {
+    "latitude": 52.52,
+    "longitude": 13.4,
+    "appliance": "inverter",
+    "arrays": [
+      {
+        "name": "south",
+        "kwp": 6.3,
+        "tilt": 30,
+        "azimuth": 0,
+        "voltage": "mppt1_voltage",
+        "current": "mppt1_current"
+      },
+      {
+        "name": "east",
+        "kwp": 4.0,
+        "tilt": 20,
+        "azimuth": -90,
+        "voltage": "mppt2_voltage",
+        "current": "mppt2_current"
+      }
+    ],
+    "battery_max_charge_w": 10000,
+    "battery_max_discharge_w": 10000,
+    "surplus_threshold_w": 1000
+  }
 }

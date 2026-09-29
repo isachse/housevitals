@@ -153,7 +153,8 @@ def instrument_plan(hub: Hub) -> list[Instrument]:
     return plan
 
 
-def register_instruments(meter: Meter, hub: Hub, overrides: OverrideManager | None = None) -> list[str]:
+def register_instruments(meter: Meter, hub: Hub, overrides: OverrideManager | None = None,
+                         forecast=None) -> list[str]:
     """Create observable instruments for every polled register. Returns metric names."""
     names: list[str] = []
     for inst in instrument_plan(hub):
@@ -191,7 +192,50 @@ def register_instruments(meter: Meter, hub: Hub, overrides: OverrideManager | No
             description="Register writes by the override manager (apply and restore)",
         )
         names += [f"{PREFIX}.override.active", f"{PREFIX}.override.writes"]
+    if forecast is not None:
+        meter.create_observable_gauge(
+            f"{PREFIX}.forecast.pv.power", [lambda o: _forecast_power(forecast)], unit="W",
+            description="Forecast PV power for the running quarter hour, per array and total",
+        )
+        meter.create_observable_gauge(
+            f"{PREFIX}.forecast.pv.energy", [lambda o: _forecast_energy(forecast)], unit="kWh",
+            description="Forecast PV energy of the whole day (day=today|tomorrow)",
+        )
+        meter.create_observable_gauge(
+            f"{PREFIX}.forecast.performance_ratio", [lambda o: _forecast_ratio(forecast)], unit="",
+            description="Calibrated performance ratio per PV array (measured / modelled energy)",
+        )
+        meter.create_observable_gauge(
+            f"{PREFIX}.forecast.age", [lambda o: _forecast_age(forecast)], unit="s",
+            description="Age of the weather forecast in use",
+        )
+        names += [f"{PREFIX}.forecast.{n}" for n in ("pv.power", "pv.energy", "performance_ratio", "age")]
     return names
+
+
+def _forecast_power(forecast) -> Iterable[Observation]:
+    power = forecast.current_power()
+    if power:
+        for array, watts in power.items():
+            yield Observation(watts, {"array": array})
+
+
+def _forecast_energy(forecast) -> Iterable[Observation]:
+    if forecast.state.weather:
+        for day, kwh in forecast.day_energy().items():
+            yield Observation(kwh, {"day": day})
+
+
+def _forecast_ratio(forecast) -> Iterable[Observation]:
+    for array in forecast.config.arrays:
+        cal = forecast.state.calibration.get(array.name)
+        if cal is not None and cal.calibrated:
+            yield Observation(cal.performance_ratio, {"array": array.name})
+
+
+def _forecast_age(forecast) -> Iterable[Observation]:
+    if forecast.state.fetched_at is not None:
+        yield Observation(forecast.now() - forecast.state.fetched_at, {})
 
 
 def _make_callback(series: list[_Series]):
@@ -316,7 +360,7 @@ class BufferingExporter(MetricExporter):
 
 
 def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None,
-                  overrides: OverrideManager | None = None,
+                  overrides: OverrideManager | None = None, forecast=None,
                   ) -> tuple[MeterProvider | None, BufferingExporter | None]:
     """Create a MeterProvider exporting all polled values.
 
@@ -342,5 +386,5 @@ def setup_metrics(hub: Hub, readers: list[MetricReader] | None = None,
         "service.instance.id": service.instance_id,
     })
     provider = MeterProvider(resource=resource, metric_readers=readers)
-    register_instruments(provider.get_meter("housevitals", __version__), hub, overrides)
+    register_instruments(provider.get_meter("housevitals", __version__), hub, overrides, forecast)
     return provider, exporter
