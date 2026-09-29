@@ -95,7 +95,7 @@ def test_dashboard_queries_combine_series():
         panels = [p for row in dash["panels"] for p in ([row] if row["type"] != "row" else row["panels"])]
         for panel in panels:
             for t in panel.get("targets", []):
-                for m in selector.finditer(t["expr"]):
+                for m in selector.finditer(t.get("expr", "")):  # REST API (Infinity) targets have none
                     before = t["expr"][:m.start()]
                     assert before.endswith(("max by (appliance) (", "sum by (appliance) (increase(",
                                             "max by (array, day) (")), t["expr"]

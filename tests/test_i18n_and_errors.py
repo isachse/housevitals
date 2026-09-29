@@ -149,7 +149,11 @@ def test_grafana_dashboards_fully_translated():
     import build_grafana_dashboard as dashboards
 
     result = dashboards.dashboards()  # raises on any untranslated display text
-    assert set(result) == {"de", "en"}
-    assert result["en"]["uid"] == "home-energy-en"
-    exprs = lambda d: json.dumps([t["expr"] for p in d["panels"] for t in p.get("targets", [])])  # noqa: E731
-    assert exprs(result["de"]) == exprs(result["en"])  # queries identical
+    assert set(result) == {"home-energy", "home-energy-en", "pv-forecast", "pv-forecast-en"}
+    queries = lambda d: json.dumps([{k: v for k, v in t.items() if k in ("expr", "url", "root_selector")}  # noqa: E731
+                                    for p in d["panels"] for t in p.get("targets", [])])
+    for uid in ("home-energy", "pv-forecast"):
+        assert queries(result[uid]) == queries(result[f"{uid}-en"])  # queries identical
+        # links to other dashboards stay in the dashboard's language
+        assert all(link["url"].endswith("-en") for link in result[f"{uid}-en"]["links"]
+                   if link["url"].startswith("/d/") and link["title"] != "Deutsch")
