@@ -1,5 +1,5 @@
-"""Generate the Grafana dashboards deploy/grafana/dashboards/home-energy.json (German)
-and home-energy-en.json (English).
+"""Generate the Grafana dashboards in deploy/grafana/dashboards: home-energy.json and
+pv-forecast.json (German) plus their English copies (*-en.json).
 
 Colors follow a fixed entity -> color mapping (validated categorical palette, dark
 steps, since Grafana defaults to the dark theme): each appliance/energy flow keeps
@@ -14,8 +14,13 @@ import json
 import re
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "deploy" / "grafana" / "dashboards" / "home-energy.json"
+OUT = Path(__file__).resolve().parent.parent / "deploy" / "grafana" / "dashboards"
 DS = {"type": "prometheus", "uid": "prometheus"}
+# REST API of housevitals via the Infinity plugin: forecasts reach into the future,
+# which Prometheus cannot hold (deploy/grafana/provisioning/datasources/housevitals-api.yaml)
+API = {"type": "yesoreyeram-infinity-datasource", "uid": "housevitals-api"}
+API_URL = "http://127.0.0.1:8080/api/v1"
+MIXED = {"type": "datasource", "uid": "-- Mixed --"}
 M = "housevitals_"
 
 # Categorical palette (dark steps), fixed per entity.
@@ -80,6 +85,23 @@ def target(expr: str, legend: str = "", instant: bool = False, interval: str | N
     return t
 
 
+def api_target(path: str, field: str) -> dict:
+    """Infinity query of one field of a forecast endpoint's "intervals"."""
+    return {"datasource": API, "type": "json", "source": "url", "parser": "backend",
+            "format": "timeseries", "url": f"{API_URL}/{path}", "url_options": {"method": "GET"},
+            "root_selector": "intervals",
+            "columns": [{"selector": "ts", "text": "Zeit", "type": "timestamp_epoch_s"},
+                        {"selector": field, "text": field, "type": "number"}]}
+
+
+def by_ref(ref: str, name: str, color: str, dashed: bool = False, extra: list | None = None) -> dict:
+    """Name and style of a query's series by its refId (Infinity series carry the refId in their name)."""
+    o = override(name, color, dashed, extra)
+    o["matcher"] = {"id": "byFrameRefID", "options": ref}
+    o["properties"].insert(0, {"id": "displayName", "value": name})
+    return o
+
+
 def override(name: str, color: str | None = None, dashed: bool = False, extra: list | None = None,
              dotted: bool = False) -> dict:
     props = []
@@ -95,7 +117,8 @@ def _finish(panel: dict, targets: list[dict]) -> dict:
     for ref, t in zip("ABCDEFGHIJKLMNOP", targets):
         t["refId"] = ref
     panel["id"] = next(_ids)
-    panel["datasource"] = DS
+    sources = {t["datasource"]["uid"] for t in targets}
+    panel["datasource"] = DS if sources == {DS["uid"]} else MIXED
     panel["targets"] = targets
     return panel
 
@@ -467,7 +490,69 @@ def build() -> dict:
         "links": [
             {"title": "Prometheus", "type": "link", "url": "http://localhost:9090", "targetBlank": True},
             {"title": "REST-API", "type": "link", "url": "http://localhost:8080/docs", "targetBlank": True},
+            {"title": "PV-Prognose", "type": "link", "url": "/d/pv-forecast", "targetBlank": False},
         ],
+        "templating": {"list": []},
+        "annotations": {"list": []},
+        "panels": panels,
+    }
+
+
+def build_forecast() -> dict:
+    """Today and tomorrow: measured and forecast PV, expected load, surplus, battery.
+
+    A separate dashboard because its range reaches into the future (a panel time
+    override cannot shift forward). Forecast series come from the REST API.
+    """
+    energy = f"{M}forecast_pv_energy_kWh"
+    panels = [
+        stat("PV-Prognose heute", [target(f'{energy}{{day="today"}}', "heute")], g(0, 0, 6, 4),
+             "kwatth", decimals=1, only_when_up=False),
+        stat("PV-Prognose morgen", [target(f'{energy}{{day="tomorrow"}}', "morgen")], g(6, 0, 6, 4),
+             "kwatth", decimals=1, only_when_up=False),
+        stat("PV-Erzeugung heute", [target(f"{M}daily_pv_energy_kWh{{{INV}}}", "PV")], g(12, 0, 6, 4),
+             "kwatth", decimals=1),
+        stat("Ladezustand", [target(f"{M}battery_soc_percent{{{INV}}}", "Ladezustand")], g(18, 0, 6, 4),
+             "percent", decimals=0, min_=0, max_=100, overrides=[override("Ladezustand", VIOLET)]),
+    ]
+    right = {"id": "custom.axisPlacement", "value": "right"}
+    percent = [{"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100}, right]
+    area = [{"id": "custom.fillOpacity", "value": 35}, {"id": "custom.lineWidth", "value": 0}]
+    forecast = timeseries(
+        "PV-Prognose heute & morgen", [
+            target(f"{M}pv_power_watts{{{INV}}}", "PV gemessen"),
+            target(f"{M}battery_soc_percent{{{INV}}}", "Ladezustand"),
+            api_target("forecast/pv?resolution=15m", "pv_w"),
+            api_target("forecast/surplus?resolution=15m", "load_w"),
+            api_target("forecast/surplus?resolution=15m", "export_w"),
+            api_target("forecast/surplus?resolution=15m", "soc"),
+        ], g(0, 4, 24, 12), "watt",
+        description="Gemessene und prognostizierte PV-Leistung von heute und morgen, erwarteter "
+                    "Hausverbrauch (Profil der letzten Tage) und Batterie-Ladezustand (rechte Achse). "
+                    "Grüne Fläche: erwartete Einspeisung, solange die Batterie voll ist oder an "
+                    "ihrer Ladegrenze lädt (Überschussfenster).",
+        overrides=[override("PV gemessen", YELLOW), override("Ladezustand", VIOLET, extra=percent),
+                   by_ref("C", "PV-Prognose", YELLOW, dashed=True),
+                   by_ref("D", "Verbrauch erwartet", BLUE, dashed=True),
+                   by_ref("E", "Überschuss", AQUA, extra=area),
+                   by_ref("F", "Ladezustand Prognose", VIOLET, dashed=True, extra=percent)])
+    forecast["options"]["legend"]["calcs"] = ["max"]
+    panels.append(forecast)
+    return {
+        "uid": "pv-forecast",
+        "title": "Haus · PV-Prognose",
+        "description": "PV-Prognose (Open-Meteo) für heute und morgen mit Überschussfenstern.",
+        "tags": ["housevitals", "energie", "prognose"],
+        "timezone": "browser",
+        "weekStart": "monday",
+        "refresh": "5m",
+        "time": {"from": "now/d", "to": "now+1d/d"},
+        "timepicker": {"refresh_intervals": ["1m", "5m", "15m"]},
+        "graphTooltip": 1,
+        "editable": True,
+        "schemaVersion": 41,
+        "links": [{"title": "Haus · Energie & Wärmepumpen", "type": "link", "url": "/d/home-energy",
+                   "targetBlank": False}],
         "templating": {"list": []},
         "annotations": {"list": []},
         "panels": panels,
@@ -479,7 +564,8 @@ def build() -> dict:
 # (titles, descriptions, legends, state texts). Queries are never touched. A display
 # text missing from a table is an error, so no half-translated dashboard is written.
 KEEP = {"PV", "L1", "L2", "L3", "String 1", "String 2", "String 3", "Prometheus", "REST-API",
-        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}", "{{array}}"}
+        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}", "{{array}}",
+        "pv_w", "load_w", "export_w", "soc"}  # + REST API field names
 TRANSLATIONS = {
     "en": {
         "Haus · Energie & Wärmepumpen": "Home · Energy & heat pumps",
@@ -538,6 +624,19 @@ TRANSLATIONS = {
         "Prognose · PV": "Forecast · PV", "PV-Prognose": "PV forecast",
         "PV-Prognose heute": "PV forecast today", "PV-Prognose morgen": "PV forecast tomorrow",
         "heute": "today", "morgen": "tomorrow",
+        "PV-Prognose heute & morgen": "PV forecast today & tomorrow",
+        "Haus · PV-Prognose": "Home · PV forecast",
+        "PV-Prognose (Open-Meteo) für heute und morgen mit Überschussfenstern.":
+            "PV forecast (Open-Meteo) for today and tomorrow with surplus windows.", "PV gemessen": "PV measured",
+        "Verbrauch erwartet": "expected load", "Überschuss": "surplus",
+        "Ladezustand Prognose": "state of charge forecast", "Zeit": "time",
+        "Gemessene und prognostizierte PV-Leistung von heute und morgen, erwarteter "
+        "Hausverbrauch (Profil der letzten Tage) und Batterie-Ladezustand (rechte Achse). "
+        "Grüne Fläche: erwartete Einspeisung, solange die Batterie voll ist oder an "
+        "ihrer Ladegrenze lädt (Überschussfenster).":
+            "Measured and forecast PV power of today and tomorrow, expected house load (profile of "
+            "the past days) and battery state of charge (right axis). Green area: expected feed-in "
+            "while the battery is full or charging at its limit (surplus window).",
         "Performance Ratio je Modulfeld": "Performance ratio per array",
         "Erwartete PV-Erzeugung des ganzen Tages (Open-Meteo, je Modulfeld kalibriert).":
             "Expected PV generation of the whole day (Open-Meteo, calibrated per array).",
@@ -598,32 +697,47 @@ def localize(node, lang: str):
         if key in ("title", "description", "legendFormat", "text") and isinstance(value, str) \
                 and value and value != "__auto":
             out[key] = _translate_text(value, lang)
-        elif key == "matcher" and isinstance(value.get("options"), str):
+        elif key == "value" and node.get("id") == "displayName":
+            out[key] = _translate_text(value, lang)
+        elif key == "matcher" and value.get("id") == "byName":
             out[key] = {**value, "options": _translate_text(value["options"], lang)}
         else:
             out[key] = localize(value, lang)
     return out
 
 
+def _uid(uid: str, lang: str) -> str:
+    return uid if lang == "de" else f"{uid}-{lang}"
+
+
 def dashboards() -> dict[str, dict]:
-    """{lang: dashboard}; German is the source, the others are translated."""
-    base = build()
+    """{uid: dashboard}; German is the source, the others are translated."""
+    out = {}
+    for base in (build(), build_forecast()):
+        for lang, dash in _languages(base).items():
+            out[dash["uid"]] = dash
+    return out
+
+
+def _languages(base: dict) -> dict[str, dict]:
     result = {"de": base, **{lang: localize(base, lang) for lang in TRANSLATIONS}}
     for lang, dash in result.items():
-        if lang != "de":
-            dash["uid"] = f"{base['uid']}-{lang}"
+        dash["uid"] = _uid(base["uid"], lang)
+        for link in dash["links"]:  # links to the other dashboards stay in the language
+            if link["url"].startswith("/d/"):
+                link["url"] = "/d/" + _uid(link["url"][3:], lang)
         dash["tags"] = [*base["tags"], lang]
         dash["links"] = [link for link in dash["links"] if link["title"] not in LANG_LINKS.values()] + [
             {"title": LANG_LINKS[other], "type": "link", "targetBlank": False,
-             "url": f"/d/{base['uid'] if other == 'de' else base['uid'] + '-' + other}"}
+             "url": f"/d/{_uid(base['uid'], other)}"}
             for other in result if other != lang
         ]
     return result
 
 
 if __name__ == "__main__":
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    for lang, dash in dashboards().items():
-        path = OUT if lang == "de" else OUT.with_name(f"{OUT.stem}-{lang}.json")
+    OUT.mkdir(parents=True, exist_ok=True)
+    for uid, dash in dashboards().items():
+        path = OUT / f"{uid}.json"
         path.write_text(json.dumps(dash, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"wrote {path}")

@@ -1,0 +1,14 @@
+# The housevitals REST API as a data source (Infinity plugin), for data Prometheus
+# cannot hold, such as the PV forecast for the coming hours.
+#   grafana cli plugins install yesoreyeram-infinity-datasource
+apiVersion: 1
+datasources:
+  - name: housevitals API
+    uid: housevitals-api
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    editable: false
+    jsonData:
+      auth_method: none
+      allowedHosts:
+        - http://127.0.0.1:8080

@@ -67,6 +67,7 @@ class ChartSpec:
     min_range: str
     max_range: str
     max_age: float  # seconds until a cached image is re-rendered
+    needs_forecast: bool = False  # only with a configured PV forecast
 
 
 CATALOG: dict[str, ChartSpec] = {s.name: s for s in (
@@ -80,6 +81,9 @@ CATALOG: dict[str, ChartSpec] = {s.name: s for s in (
               "heat_pump", False, "365d", "31d", "1826d", 6 * 3600),
     ChartSpec("compressor_cycles", "Compressor runtime hours and starts per day and heat pump",
               "heat_pump", False, "7d", "2d", "31d", 1800),
+    ChartSpec("pv_forecast", "Today and tomorrow: measured and forecast PV power, expected house "
+              "load, surplus windows; battery state of charge (measured, then simulated) below",
+              "inverter", True, "2d", "2d", "2d", 900, needs_forecast=True),
 )}
 
 _RANGE = re.compile(r"^(\d+)\s*([hdw])$")
@@ -117,6 +121,7 @@ class ChartService:
     def __init__(self, hub: Hub, history: History):
         self.hub = hub
         self.history = history
+        self.forecast = None  # ForecastService, set when a forecast is configured
         self.default_lang = hub.config.lang
         self._cache: OrderedDict[CacheKey, ChartImage] = OrderedDict()
         # Cached images with a "stale" badge: key -> (generated_at of the original, png)
@@ -132,11 +137,14 @@ class ChartService:
     def appliances_of(self, kind: str) -> list[Appliance]:
         return [a for a in self.hub.appliances.values() if a.profile.kind == kind]
 
+    def _available(self, spec: ChartSpec) -> bool:
+        return bool(self.appliances_of(spec.kind)) and (not spec.needs_forecast or self.forecast is not None)
+
     def catalog(self) -> list[dict[str, Any]]:
         out = []
         for spec in CATALOG.values():
             apps = self.appliances_of(spec.kind)
-            if apps:
+            if self._available(spec):
                 out.append({
                     "chart": spec.name,
                     "description": spec.description,
@@ -155,6 +163,8 @@ class ChartService:
         apps = self.appliances_of(spec.kind)
         if not apps:
             raise UnknownChartError(f"No {spec.kind.replace('_', ' ')} configured for '{chart}'.")
+        if spec.needs_forecast and self.forecast is None:
+            raise UnknownChartError(f"'{chart}' needs a forecast section in the configuration.")
         if appliance:
             app = self.hub.get(appliance)  # UnknownApplianceError -> 404
             if app.profile.kind != spec.kind:
@@ -176,8 +186,10 @@ class ChartService:
         language, per appliance where the chart is per appliance."""
         requests = []
         for spec in CATALOG.values():
+            if not self._available(spec):
+                continue
             apps = self.appliances_of(spec.kind)
-            names = [a.name for a in apps] if spec.per_appliance else [""] if apps else []
+            names = [a.name for a in apps] if spec.per_appliance else [""]
             requests += [self._request(spec.name, name, "", None) for name in names]
         return requests
 
@@ -514,6 +526,87 @@ async def _compressor_cycles(svc: ChartService, req: _Request, start: datetime, 
     return draw, summary
 
 
+async def _pv_forecast(svc: ChartService, req: _Request, start: datetime, end: datetime):
+    """Today and tomorrow: measured PV so far, forecast PV, expected load, surplus windows,
+    battery state of charge (measured, then simulated). The requested range is fixed."""
+    t, app, forecast = req.t, req.app, svc.forecast
+    pv = await forecast.pv_forecast("", "15m")
+    surplus = await forecast.surplus(resolution="15m")
+    now = datetime.fromtimestamp(forecast.now(), svc.tz)
+    day0 = datetime.combine(now.date(), datetime.min.time(), svc.tz)
+    day2 = day0 + timedelta(days=2)
+    measured: dict[str, list] = {}
+    try:  # measured values of today; the forecast alone still makes a chart
+        history = await svc.history.history(app, ["pv_power", "battery_soc"], day0.isoformat(),
+                                            now.isoformat(), 300)
+        measured = {k: v.get("points", []) for k, v in history["series"].items()}
+    except HomeModbusError as err:
+        _LOGGER.info("pv_forecast chart without measured values: %s", _text(err))
+
+    def parse(ts: str) -> datetime:
+        return datetime.fromisoformat(ts).astimezone(svc.tz)
+
+    pv_points = [(parse(i["start"]) + timedelta(minutes=7.5), i["pv_w"] / 1000) for i in pv["intervals"]]
+    course = [(parse(i["start"]) + timedelta(minutes=7.5), i) for i in surplus["intervals"]]
+    measured_pv = [(parse(ts), v / 1000) for ts, v in measured.get("pv_power", []) if v is not None]
+    so_far = sum(v for _, v in measured.get("pv_power", []) if v is not None) * 300 / 3.6e6  # W·5 min -> kWh
+    days = list(pv["days"].values())
+    windows = surplus["windows"]
+    summary = {"days": pv["days"], "measured_today_kwh": round(so_far, 1),
+               "battery": surplus["battery"], "windows": windows,
+               "performance_ratio": {a["name"]: a["performance_ratio"] for a in pv["arrays"]},
+               "issued_at": pv["issued_at"], **({"forecast_stale": True} if pv["stale"] else {})}
+
+    def draw() -> bytes:
+        import matplotlib.dates as mdates
+
+        fig, (ax, ax2) = cs.figure(2, heights=(3, 1))
+        for w in windows:
+            ax.axvspan(parse(w["start"]), parse(w["end"]), color=cs.AQUA, alpha=0.15, lw=0, zorder=1)
+            ax.annotate(f"+{w['export_kwh']:g} kWh", (parse(w["start"]), 1.0), xycoords=("data", "axes fraction"),
+                        xytext=(3, -12), textcoords="offset points", fontsize=8, color=cs.INK_2)
+        if measured_pv:
+            ax.plot(*zip(*measured_pv), color=cs.YELLOW, lw=2, label=t("measured"), zorder=3)
+        ax.plot(*zip(*pv_points), color=cs.YELLOW, lw=2, ls="--", label=t("pv_forecast"), zorder=2)
+        if course:
+            ax.plot([c[0] for c in course], [c[1]["load_w"] / 1000 for c in course], color=cs.BLUE, lw=1.5,
+                    ls="--", label=t("load_expected"), zorder=2)
+        ax.axvline(now, color=cs.INK_2, lw=1, ls=":", zorder=4)
+        ax.annotate(t("now"), (now, 1.0), xycoords=("data", "axes fraction"), xytext=(3, -24),
+                    textcoords="offset points", fontsize=8, color=cs.INK_2)
+        ax.set_ylabel("kW")
+        ax.set_ylim(bottom=0)
+        handles = ax.get_legend_handles_labels()[0] + cs.patches([(t("surplus"), cs.AQUA)])
+        cs.legend(ax, handles)
+
+        soc_measured = [(parse(ts), v) for ts, v in measured.get("battery_soc", []) if v is not None]
+        if soc_measured:
+            ax2.plot(*zip(*soc_measured), color=cs.AQUA, lw=2)
+        soc_forecast = [(c[0], c[1]["soc"]) for c in course if c[1]["soc"] is not None]
+        if soc_forecast:
+            ax2.plot(*zip(*soc_forecast), color=cs.AQUA, lw=2, ls="--")
+        ax2.axvline(now, color=cs.INK_2, lw=1, ls=":")
+        ax2.set_ylim(0, 100)
+        ax2.set_yticks([0, 50, 100])
+        ax2.set_ylabel(f"{t('soc_short')} %")
+        ax2.set_xlim(day0, day2)
+        ax2.xaxis.set_major_locator(mdates.HourLocator(byhour=[0, 6, 12, 18], tz=svc.tz))
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter(cs.date_format(t, "span"), tz=svc.tz))
+
+        parts = [t("forecast_today", kwh=f"{days[0]['pv_kwh']:g}", so_far=f"{so_far:.1f}"),
+                 t("forecast_tomorrow", kwh=f"{days[1]['pv_kwh']:g}") if len(days) > 1 else None,
+                 t("surplus_from", time=_hhmm(windows[0]["start"], t)) if windows else t("no_surplus")]
+        cs.header(fig, t("chart.pv_forecast"), " · ".join(p for p in parts if p), t, now)
+        return cs.png(fig)
+
+    return draw, summary
+
+
+def _hhmm(iso: str, t: Translator) -> str:
+    """'2026-09-30T13:15+02:00' -> '13:15' today, 'Sep 30 13:15' / '30.09. 13:15' otherwise."""
+    return datetime.fromisoformat(iso).strftime(cs.date_format(t, "span"))
+
+
 def _text(err: BaseException) -> str:
     return str(err) or type(err).__name__
 
@@ -524,5 +617,6 @@ BUILDERS: dict[str, Builder] = {
     "heatpump": _heatpump,
     "heatpump_spf": _heatpump_spf,
     "compressor_cycles": _compressor_cycles,
+    "pv_forecast": _pv_forecast,
 }
 assert BUILDERS.keys() == CATALOG.keys()

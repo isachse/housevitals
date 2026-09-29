@@ -41,6 +41,12 @@
       "targetBlank": true
     },
     {
+      "title": "PV forecast",
+      "type": "link",
+      "url": "/d/pv-forecast-en",
+      "targetBlank": false
+    },
+    {
       "title": "Deutsch",
       "type": "link",
       "targetBlank": false,
