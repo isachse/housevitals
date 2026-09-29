@@ -22,13 +22,15 @@ class FakePrometheus:
 
     FN = re.compile(r"^(\w+)\((.*)\[(\w+)\]\)$")
     RAW = re.compile(r"^(.*)\[(\d+)s\]$")
+    AGG = re.compile(r"^(max|min|sum|avg) by \(([^)]*)\) \((.*)\)$")
 
     def __init__(self):
-        self.samples: dict[tuple[str, str], list[tuple[float, float]]] = {}
+        # (metric, appliance, instance) -> samples; several instances = several series
+        self.samples: dict[tuple[str, str, str], list[tuple[float, float]]] = {}
         self.queries: list[str] = []
 
-    def add(self, metric, appliance, points):
-        self.samples.setdefault((metric, appliance), []).extend(points)
+    def add(self, metric, appliance, points, instance="host-a"):
+        self.samples.setdefault((metric, appliance, instance), []).extend(points)
 
     @staticmethod
     def _seconds(d: str) -> float:
@@ -46,44 +48,61 @@ class FakePrometheus:
 
     def _eval(self, fn, selector, window, t):
         out = []
-        for (metric, app), pts in self._match(selector).items():
+        for (metric, app, instance), pts in self._match(selector).items():
             vals = [v for ts, v in pts if t - window < ts <= t]
             if not vals:
                 continue
             value = {"last_over_time": vals[-1], "min_over_time": min(vals), "max_over_time": max(vals),
                      "avg_over_time": sum(vals) / len(vals), "count_over_time": len(vals)}[fn]
-            labels = {"appliance": app}
+            labels = {"appliance": app, "instance": instance}
             if fn == "last_over_time":  # like Prometheus: keeps the metric name
                 labels["__name__"] = metric
             out.append((labels, value))
         return out
 
+    def _vector(self, q: str, t: float):
+        """Instant evaluation of FN or an aggregation over FN: [(labels, value)]."""
+        if agg := self.AGG.match(q):
+            op, by = agg.group(1), [x.strip() for x in agg.group(2).split(",")]
+            groups: dict[tuple, list[float]] = {}
+            for labels, v in self._vector(agg.group(3), t):
+                key = tuple((k, labels[k]) for k in by if k in labels)
+                groups.setdefault(key, []).append(v)
+            combine = {"max": max, "min": min, "sum": sum, "avg": lambda vs: sum(vs) / len(vs)}[op]
+            return [(dict(key), combine(vs)) for key, vs in groups.items()]
+        m = self.FN.match(q)
+        return self._eval(m.group(1), m.group(2), self._seconds(m.group(3)), t)
+
     def handler(self, request: httpx.Request) -> httpx.Response:
         q = request.url.params["query"]
         self.queries.append(q)
         if request.url.path.endswith("/query_range"):
-            m = self.FN.match(q)
             start, end, step = (float(request.url.params[k]) for k in ("start", "end", "step"))
-            series: dict[str, dict] = {}
+            series: dict[tuple, dict] = {}
             t = start
             while t <= end:
-                for labels, v in self._eval(m.group(1), m.group(2), self._seconds(m.group(3)), t):
-                    series.setdefault(labels["appliance"], {"metric": labels, "values": []})["values"].append([t, str(v)])
+                for labels, v in self._vector(q, t):
+                    key = tuple(sorted(labels.items()))
+                    series.setdefault(key, {"metric": labels, "values": []})["values"].append([t, str(v)])
                 t += step
             data = {"resultType": "matrix", "result": list(series.values())}
         else:
             t = float(request.url.params["time"])
-            if m := self.FN.match(q):
+            if self.AGG.match(q):
+                data = {"resultType": "vector",
+                        "result": [{"metric": labels, "value": [t, str(v)]} for labels, v in self._vector(q, t)]}
+            elif m := self.FN.match(q):
                 result = self._eval(m.group(1), m.group(2), self._seconds(m.group(3)), t)
-                if m.group(1) != "last_over_time" and len(result) != len({l["appliance"] for l, _ in result}):
+                if m.group(1) != "last_over_time" and len(result) != len({tuple(l.items()) for l, _ in result}):
                     return httpx.Response(422, json={"status": "error", "error": "same labelset"})
                 data = {"resultType": "vector",
                         "result": [{"metric": labels, "value": [t, str(v)]} for labels, v in result]}
             elif m := self.RAW.match(q):
                 window = float(m.group(2))
                 data = {"resultType": "matrix", "result": [
-                    {"metric": {"appliance": app}, "values": [[ts, str(v)] for ts, v in pts if t - window < ts <= t]}
-                    for (_, app), pts in self._match(m.group(1)).items()]}
+                    {"metric": {"appliance": app, "instance": instance},
+                     "values": [[ts, str(v)] for ts, v in pts if t - window < ts <= t]}
+                    for (_, app, instance), pts in self._match(m.group(1)).items()]}
             else:
                 raise AssertionError(f"unsupported query {q}")
         return httpx.Response(200, json={"status": "success", "data": data})

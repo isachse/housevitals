@@ -148,6 +148,10 @@ class ServiceConfig:
     on_demand_ttl: float = 10.0
     prometheus_url: str | None = None  # enables the history tools, e.g. http://127.0.0.1:9090
     timezone: str = "Europe/Berlin"  # calendar days/months for energy statistics
+    # OpenTelemetry service.instance.id, i.e. Prometheus' `instance` label. Fixed on
+    # purpose: a changing value (e.g. the host name, which macOS may derive from the
+    # router) would start new series for every metric.
+    instance_id: str = "housevitals"
     # Control API (overrides). Writing needs a bearer token, read from this file or from
     # HOUSEVITALS_CONTROL_TOKEN; without one the control API only lists overrides.
     control_token_file: str | None = None
