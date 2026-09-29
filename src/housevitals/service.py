@@ -60,13 +60,15 @@ def build_app(config: ServerConfig, services: Services | None = None, metric_rea
         host=service.http_host,
         transport_security=_transport_security(service.allowed_hosts),
     )
-    provider, exporter = setup_metrics(hub, metric_readers, services.overrides)
+    provider, exporter = setup_metrics(hub, metric_readers, services.overrides, services.forecast)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await hub.start()
         if services.overrides is not None:
             await services.overrides.start()
+        if services.forecast is not None:
+            await services.forecast.start()
         chart_task = asyncio.create_task(charts.run(), name="charts") if charts else None
         _LOGGER.info("Polling %d appliance(s); OTLP export %s; history %s; overrides %s",
                      len(hub.appliances), service.otlp_endpoint or "disabled",
