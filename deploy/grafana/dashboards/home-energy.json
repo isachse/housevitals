@@ -2041,7 +2041,7 @@
     {
       "type": "timeseries",
       "title": "Wärmepumpen · Strom pro Tag",
-      "description": "Stromverbrauch je Wärmepumpe und Tag (Zähler in ganzen kWh).",
+      "description": "Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).",
       "gridPos": {
         "x": 12,
         "y": 26,
@@ -2076,7 +2076,7 @@
           "color": {
             "mode": "palette-classic"
           },
-          "decimals": 0
+          "decimals": 1
         },
         "overrides": [
           {
@@ -2138,7 +2138,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05",
           "legendFormat": "WP1",
           "range": true,
           "instant": false,
@@ -2150,7 +2150,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05",
           "legendFormat": "WP2",
           "range": true,
           "instant": false,
@@ -2979,7 +2979,7 @@
     {
       "type": "timeseries",
       "title": "Arbeitszahl pro Tag",
-      "description": "Wärme / Strom je Tag. An Tagen mit wenig Laufzeit ungenau (Zähler in ganzen kWh).",
+      "description": "Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.",
       "gridPos": {
         "x": 0,
         "y": 58,
@@ -3076,7 +3076,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
           "legendFormat": "WP1",
           "range": true,
           "instant": false,
@@ -3088,7 +3088,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
           "legendFormat": "WP2",
           "range": true,
           "instant": false,
@@ -3100,7 +3100,7 @@
     {
       "type": "timeseries",
       "title": "Wärme pro Tag",
-      "description": "",
+      "description": "Gelieferte Wärme je Wärmepumpe und Tag, aus der gemessenen thermischen Leistung summiert.",
       "gridPos": {
         "x": 12,
         "y": 58,
@@ -3197,7 +3197,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667",
           "legendFormat": "WP1",
           "range": true,
           "instant": false,
@@ -3209,7 +3209,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667",
           "legendFormat": "WP2",
           "range": true,
           "instant": false,

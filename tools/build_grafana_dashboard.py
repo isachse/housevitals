@@ -37,7 +37,8 @@ _ids = iter(range(1, 1000))
 
 # --------------------------------------------------------------------------- helpers
 _INCREASE = re.compile(r"increase\((" + M + r"\w+\{[^}]*\})(\[[^\]]+\](?: offset -?\w+)?)\)")
-_SELECTOR = re.compile(r"(?<!increase\()(" + M + r"\w+\{[^}]*\})(?![\[\w])")
+_SUBQUERY = re.compile(r"(sum|count)_over_time\((" + M + r"\w+\{[^}]*\})(\[[^\]:]+:[^\]]+\](?: offset -?\w+)?)\)")
+_SELECTOR = re.compile(r"(?<!increase\()(?<!max by \(appliance\) \()(" + M + r"\w+\{[^}]*\})(?![\[\w])")
 
 
 def per_appliance(expr: str) -> str:
@@ -49,7 +50,18 @@ def per_appliance(expr: str) -> str:
     part of the time range).
     """
     expr = _INCREASE.sub(r"sum by (appliance) (increase(\1\2))", expr)
+    expr = _SUBQUERY.sub(r"\1_over_time((max by (appliance) (\2))\3)", expr)
     return _SELECTOR.sub(r"max by (appliance) (\1)", expr)
+
+
+def daily_energy(metric: str, appliance: str, to_kw: float) -> str:
+    """kWh per day from a power metric: sum of one-minute samples over the day.
+
+    Used for the heat pumps, whose energy counters are not updated over Modbus. The
+    bar at a day's start covers that day (see "offset -1d" above).
+    """
+    return (f'sum_over_time({M}{metric}{{appliance="{appliance}"}}[1d:1m] offset -1d)'
+            f" * {to_kw / 60:.10g}")
 
 
 def target(expr: str, legend: str = "", instant: bool = False, interval: str | None = None) -> dict:
@@ -298,11 +310,11 @@ def build() -> dict:
         description="Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).",
         overrides=[override("PV-Erzeugung", YELLOW), override("Hausverbrauch", BLUE),
                    override("Netzbezug", ORANGE), override("Einspeisung", VIOLET)]))
-    t = [target(f'increase({M}electricity_kWh_total{{appliance="{a}"}}[1d] offset -1d)', s, interval="1d")
+    t = [target(daily_energy("electrical_power_watts", a, 0.001), s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
-        "Wärmepumpen · Strom pro Tag", t, g(12, y, 12, 9), "kwatth", bars=True, decimals=0,
-        interval="1d", description="Stromverbrauch je Wärmepumpe und Tag (Zähler in ganzen kWh).",
+        "Wärmepumpen · Strom pro Tag", t, g(12, y, 12, 9), "kwatth", bars=True, decimals=1,
+        interval="1d", description="Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).",
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
     y += 9
 
@@ -329,17 +341,18 @@ def build() -> dict:
     t, _ = per_hp("compressor_demand")
     panels.append(state_timeline("Verdichteranforderung", t, g(12, y, 12, 5), demand))
     y += 5
-    t = [target(f'increase({M}heat_delivered_kWh_total{{appliance="{a}"}}[1d] offset -1d)'
-                f' / increase({M}electricity_kWh_total{{appliance="{a}"}}[1d] offset -1d)', s, interval="1d")
+    t = [target(f'({daily_energy("thermal_power_kW", a, 1)}) / ({daily_energy("electrical_power_watts", a, 0.001)})',
+                s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
         "Arbeitszahl pro Tag", t, g(0, y, 12, 8), "none", bars=True, decimals=1, interval="1d",
-        description="Wärme / Strom je Tag. An Tagen mit wenig Laufzeit ungenau (Zähler in ganzen kWh).",
+        description="Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.",
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
-    t = [target(f'increase({M}heat_delivered_kWh_total{{appliance="{a}"}}[1d] offset -1d)', s, interval="1d")
+    t = [target(daily_energy("thermal_power_kW", a, 1), s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
         "Wärme pro Tag", t, g(12, y, 12, 8), "kwatth", bars=True, decimals=0, interval="1d",
+        description="Gelieferte Wärme je Wärmepumpe und Tag, aus der gemessenen thermischen Leistung summiert.",
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
     y += 8
 
@@ -490,10 +503,12 @@ TRANSLATIONS = {
             "Last Modbus request succeeded. Nothing shown = the service delivers no data.",
         "Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).":
             "Daily totals from the lifetime counters. Today's bar grows until midnight (day boundaries in UTC).",
-        "Stromverbrauch je Wärmepumpe und Tag (Zähler in ganzen kWh).":
-            "Electricity per heat pump and day (counters in whole kWh).",
-        "Wärme / Strom je Tag. An Tagen mit wenig Laufzeit ungenau (Zähler in ganzen kWh).":
-            "Heat / electricity per day. Coarse on days with little runtime (counters in whole kWh).",
+        "Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).":
+            "Electricity per heat pump and day, summed from the measured power (the heat pumps' energy counters are not updated continuously over Modbus).",
+        "Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.":
+            "Heat / electricity per day, both summed from the measured power.",
+        "Gelieferte Wärme je Wärmepumpe und Tag, aus der gemessenen thermischen Leistung summiert.":
+            "Heat delivered per heat pump and day, summed from the measured thermal power.",
         "Durchgezogen = Vorlauf, gestrichelt = Rücklauf.": "Solid = flow, dashed = return.",
         "Durchgezogen = Ist, gestrichelt = Sollwert.": "Solid = actual, dashed = setpoint.",
         "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.": "Solid = high pressure, dashed = low pressure.",

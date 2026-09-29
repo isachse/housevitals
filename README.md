@@ -166,6 +166,7 @@ List your heat pumps and inverters in a JSON file and point the server at it wit
 | `timeout` | `5` | Request timeout in seconds |
 | `description` | – | Free text shown by `list_devices` |
 | `overrides` | `{}` | Registers that may be overridden through the control API, with limits (see [Control API](#control-api-overrides)) |
+| `energy_from_power` | `false` | Energy statistics from the recorded power instead of the device's energy counters (see [Energy from power](#energy-from-power)) |
 
 Top-level options: `lang` (default language for people: REST API labels and charts;
 see [Languages](#languages)) and `default_device` (name or alias used when a tool call
@@ -629,6 +630,35 @@ number. `null` means the device reports "not available" (e.g. sensor not fitted)
 ## Register profiles
 
 Profiles live in `src/housevitals/profiles/*.json` and can be edited or extended.
+
+### Energy from power
+
+Some devices do not update their energy counters over Modbus: the Brötje BLW NEO
+reports its lifetime kWh counters, but they stay unchanged for days while the heat
+pump runs (the power values are live). Energy per day then comes out as 0 and the
+performance factor cannot be computed.
+
+A profile can therefore declare how each counter follows from a power data point
+(`power_integration`), optionally only while a state data point has a given value.
+The NEO profile computes electricity from `electrical_power` (W) and heat from
+`thermal_power` (kW), split into heating and hot water by `compressor_demand`
+(20 = heating, 30 = hot water):
+
+```json
+"power_integration": {
+  "electricity_total":   { "power": "electrical_power", "to_kw": 0.001 },
+  "electricity_dhw":     { "power": "electrical_power", "to_kw": 0.001, "state": "compressor_demand", "value": 30 },
+  "heat_delivered_total": { "power": "thermal_power", "to_kw": 1 }
+}
+```
+
+With `"energy_from_power": true` on a device, `get_energy`, the performance factor
+chart and the energy REST endpoint sum the recorded power per period (one-minute
+steps, in Prometheus) instead of taking counter differences; the result says
+`"energy_source": "integrated power"`. Gaps in the recording count as zero and mark the
+period `partial` (less than 95 % covered). The Grafana heat pump bars for electricity,
+heat and performance factor per day use the power as well. The lifetime counters stay
+available as values.
 
 - `iwr.json` and `isr.json` are generated from the MIT-licensed
   [ha-broetje](https://github.com/henrywiechert/ha-broetje) Home Assistant integration
