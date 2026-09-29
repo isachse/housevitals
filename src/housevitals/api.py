@@ -103,6 +103,9 @@ class OverrideRequest(BaseModel):
                               "is given) or HH:MM today. Exactly one of until/duration_s.")
     duration_s: float | None = Field(None, gt=0, description="Duration in seconds")
     reason: str | None = Field(None, max_length=200, description="Free text for the log")
+    restore_value: float | int | str | None = Field(
+        None, description="Written when the override ends instead of the previous value "
+        "(within the allow-list bounds), e.g. to correct a setpoint")
 
 
 def build_router(services: Services, control_token: str | None = None) -> APIRouter:
@@ -195,10 +198,13 @@ def _override_routes(router: APIRouter, services: Services, token: str | None) -
         """Hold an allow-listed register at a value until a given time. The previous value
         is restored when the override ends. Repeating the call (same owner) changes the
         value or end without a new baseline; nothing is written if the device already
-        has the value. Errors: 404 not allow-listed, 409 held by another owner,
-        429 writes for today used up, 503 appliance unreachable."""
+        has the value. A written value is checked again after a few seconds; if the device
+        changed it (a limit of its own), the previous value is written back and the request
+        fails with 422. Errors: 404 not allow-listed, 409 held by another owner,
+        422 adjusted by the device, 429 writes for today used up, 503 appliance unreachable."""
         return await overrides.apply(name, key, request.value, request.owner, until=request.until,
-                                     duration_s=request.duration_s, reason=request.reason)
+                                     duration_s=request.duration_s, reason=request.reason,
+                                     restore_value=request.restore_value)
 
     @router.delete("/appliances/{name}/overrides/{key}", tags=["control"],
                    dependencies=[Depends(authorize)])

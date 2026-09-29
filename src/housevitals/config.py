@@ -162,6 +162,10 @@ class ServiceConfig:
     control_token_file: str | None = None
     # Active overrides survive restarts here (outside the repository by default).
     override_state_file: str = "~/.local/state/housevitals/overrides.json"
+    # Seconds to wait before checking a written value a second time. Controllers may
+    # accept a value and adjust it a few seconds later (the Brötje NEO limits the DHW
+    # minimum to the maximum - 5 K after about 5 s); the first read-back misses that.
+    override_verify_delay_s: float = 10.0
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ServiceConfig:
