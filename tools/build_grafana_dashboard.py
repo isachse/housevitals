@@ -28,6 +28,7 @@ HEAT_PUMPS = [("heatpump1", "WP1", BLUE), ("heatpump2", "WP2", ORANGE)]
 INV = 'appliance="inverter"'
 FLOW = {"PV": YELLOW, "Haus": BLUE, "Batterie": AQUA, "Netz": ORANGE}
 DASH = {"fill": "dash", "dash": [10, 6]}
+DOT = {"fill": "dot", "dash": [0, 6]}
 
 _ids = iter(range(1, 1000))
 
@@ -73,12 +74,13 @@ def target(expr: str, legend: str = "", instant: bool = False, interval: str | N
     return t
 
 
-def override(name: str, color: str | None = None, dashed: bool = False, extra: list | None = None) -> dict:
+def override(name: str, color: str | None = None, dashed: bool = False, extra: list | None = None,
+             dotted: bool = False) -> dict:
     props = []
     if color:
         props.append({"id": "color", "value": {"mode": "fixed", "fixedColor": color}})
-    if dashed:
-        props.append({"id": "custom.lineStyle", "value": DASH})
+    if dashed or dotted:
+        props.append({"id": "custom.lineStyle", "value": DOT if dotted else DASH})
     props += extra or []
     return {"matcher": {"id": "byName", "options": name}, "properties": props}
 
@@ -201,13 +203,13 @@ def g(x, y, w, h) -> dict:
     return {"x": x, "y": y, "w": w, "h": h}
 
 
-def per_hp(metric: str, suffix: str = "", dashed: bool = False):
+def per_hp(metric: str, suffix: str = "", dashed: bool = False, dotted: bool = False):
     """One target + color override per heat pump."""
     targets, overrides = [], []
     for app, short, color in HEAT_PUMPS:
         name = f"{short}{suffix}"
         targets.append(target(f'{M}{metric}{{appliance="{app}"}}', name))
-        overrides.append(override(name, color, dashed))
+        overrides.append(override(name, color, dashed, dotted=dotted))
     return targets, overrides
 
 
@@ -326,8 +328,13 @@ def build() -> dict:
                              description="Durchgezogen = Vorlauf, gestrichelt = Rücklauf."))
     t1, o1 = per_hp("dhw_temperature_celsius", " Warmwasser")
     t2, o2 = per_hp("dhw_setpoint_max_celsius", " Soll", dashed=True)
-    panels.append(timeseries("Warmwasser", t1 + t2, g(12, y, 12, 9), "celsius", o1 + o2,
-                             description="Durchgezogen = Ist, gestrichelt = Sollwert."))
+    t3, o3 = per_hp("dhw_setpoint_min_celsius", " Minimum", dotted=True)
+    # min 35 °C: a heat pump with hot water practically disabled has a minimum of e.g.
+    # 15 °C, which would squash the curves; its value still shows in the legend.
+    panels.append(timeseries("Warmwasser", t1 + t2 + t3, g(12, y, 12, 9), "celsius", o1 + o2 + o3, min_=35,
+                             description="Durchgezogen = Ist, gestrichelt = Sollwert (bis dahin wird geladen), "
+                                         "gepunktet = Minimum (darunter startet eine Ladung). Die Wärmepumpe "
+                                         "lässt das Minimum höchstens 5 K unter dem Sollwert zu."))
     y += 9
     t, o = per_hp("electrical_power_watts")
     panels.append(timeseries("Leistungsaufnahme", t, g(0, y, 12, 8), "watt", o, min_=0))
@@ -510,7 +517,12 @@ TRANSLATIONS = {
         "Gelieferte Wärme je Wärmepumpe und Tag, aus der gemessenen thermischen Leistung summiert.":
             "Heat delivered per heat pump and day, summed from the measured thermal power.",
         "Durchgezogen = Vorlauf, gestrichelt = Rücklauf.": "Solid = flow, dashed = return.",
-        "Durchgezogen = Ist, gestrichelt = Sollwert.": "Solid = actual, dashed = setpoint.",
+        "Durchgezogen = Ist, gestrichelt = Sollwert (bis dahin wird geladen), gepunktet = Minimum "
+        "(darunter startet eine Ladung). Die Wärmepumpe lässt das Minimum höchstens 5 K unter dem "
+        "Sollwert zu.":
+            "Solid = actual, dashed = setpoint (charged up to it), dotted = minimum (a charge starts "
+            "below it). The heat pump keeps the minimum at least 5 K below the setpoint.",
+        "Minimum": "minimum",
         "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.": "Solid = high pressure, dashed = low pressure.",
         "Durchgezogen = Kondensation, gestrichelt = Verdampfung.": "Solid = condensation, dashed = evaporation.",
         "Durchgezogen = Wärmequelle (Eintritt), gestrichelt = Pufferspeicher.":
