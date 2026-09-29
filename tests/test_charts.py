@@ -62,7 +62,7 @@ async def test_every_catalog_chart_renders(charts):
         image = await charts.get(chart, req.key[1])
         assert image.png.startswith(PNG) and 5_000 < len(image.png) < 300_000, chart
         assert image.summary["chart"] == chart
-    assert charts.renders == len(CATALOG)  # one heat pump, one inverter
+    assert charts.renders == len(charts.default_requests())  # pv_forecast needs a forecast  # one heat pump, one inverter
     flow = (await charts.get("energy_flow")).summary
     assert flow["values"]["load_power"]["avg"] == 800
     hp = (await charts.get("heatpump", "hp")).summary
