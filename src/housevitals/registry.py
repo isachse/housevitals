@@ -72,12 +72,30 @@ class Register:
         return [self.label, *(text for _, text in self.translations)]
 
 
+class PowerIntegration:
+    """How to compute an energy counter from a power data point (optional per profile).
+
+    For devices whose energy counters are not updated over Modbus: energy per period
+    = sum of power over time. `state`/`value`: only while that state data point has
+    this raw value (e.g. compressor_demand == 30 for hot water).
+    """
+
+    def __init__(self, counter: str, power: str, to_kw: float, state: str | None = None,
+                 value: int | None = None):
+        self.counter, self.power, self.to_kw, self.state, self.value = counter, power, to_kw, state, value
+
+    @property
+    def keys(self) -> list[str]:
+        return [self.power] + ([self.state] if self.state else [])
+
+
 @dataclass
 class Profile:
     name: str
     description: str
     kind: str = "heat_pump"  # "heat_pump" or "inverter"
     registers: dict[str, Register] = field(default_factory=dict)
+    power_integration: dict[str, PowerIntegration] = field(default_factory=dict)
 
     @property
     def categories(self) -> dict[str, int]:
@@ -123,6 +141,9 @@ def load_profile(name: str, zones: list[int] | None = None) -> Profile:
     profile = Profile(
         name=raw["name"], description=raw["description"], kind=raw.get("kind", "heat_pump")
     )
+    for counter, spec in raw.get("power_integration", {}).items():
+        profile.power_integration[counter] = PowerIntegration(
+            counter, spec["power"], float(spec["to_kw"]), spec.get("state"), spec.get("value"))
     default_word_order = raw.get("word_order", "big")
     for item in raw["registers"]:
         reg = Register(
@@ -149,6 +170,10 @@ def load_profile(name: str, zones: list[int] | None = None) -> Profile:
         if zones is not None and reg.zone is not None and reg.zone not in zones:
             continue
         profile.registers[reg.key] = reg
+    for integration in profile.power_integration.values():
+        missing = [k for k in (integration.counter, *integration.keys) if k not in profile.registers]
+        if missing:
+            raise ValueError(f"Profile '{name}': power_integration refers to unknown register(s) {missing}")
     return profile
 
 

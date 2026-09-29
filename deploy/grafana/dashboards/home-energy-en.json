@@ -2042,7 +2042,7 @@
     {
       "type": "timeseries",
       "title": "Heat pumps · electricity per day",
-      "description": "Electricity per heat pump and day (counters in whole kWh).",
+      "description": "Electricity per heat pump and day, summed from the measured power (the heat pumps' energy counters are not updated continuously over Modbus).",
       "gridPos": {
         "x": 12,
         "y": 26,
@@ -2077,7 +2077,7 @@
           "color": {
             "mode": "palette-classic"
           },
-          "decimals": 0
+          "decimals": 1
         },
         "overrides": [
           {
@@ -2139,7 +2139,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2151,7 +2151,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -2980,7 +2980,7 @@
     {
       "type": "timeseries",
       "title": "Performance factor per day",
-      "description": "Heat / electricity per day. Coarse on days with little runtime (counters in whole kWh).",
+      "description": "Heat / electricity per day, both summed from the measured power.",
       "gridPos": {
         "x": 0,
         "y": 58,
@@ -3077,7 +3077,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3089,7 +3089,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) / sum by (appliance) (increase(housevitals_electricity_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3101,7 +3101,7 @@
     {
       "type": "timeseries",
       "title": "Heat per day",
-      "description": "",
+      "description": "Heat delivered per heat pump and day, summed from the measured thermal power.",
       "gridPos": {
         "x": 12,
         "y": 58,
@@ -3198,7 +3198,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3210,7 +3210,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (appliance) (increase(housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d))",
+          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
