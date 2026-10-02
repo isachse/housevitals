@@ -775,7 +775,11 @@ continues from.
   Regenerate with `python tools/generate_profiles.py <path-to-ha-broetje-checkout>`.
 - `neo.json` follows the Brötje
   [NEO-RKM manual](https://polo.broetje.de/pdf/7734937=2=pdf_(bdr_a4_manual)=de-de_ma_neo-rkm.pdf)
-  register layout (input registers 10–41 and 60–75, holding registers 100–112).
+  register layout (input registers 10–41 and 60–75, holding registers 100–116). Holding
+  registers 135–146 hold the panel heating curves (reference point and targets at 18,
+  0 and −15 °C for the heating circuit and mixing circuits 1 and 2); they are not in the
+  manual and were identified by matching the panel values, so they are read-only unless a
+  device explicitly allow-lists one.
 - `sungrow_sh.json` is generated from the MIT-licensed
   [Sungrow-SHx-Inverter-Modbus-Home-Assistant](https://github.com/mkaiser/Sungrow-SHx-Inverter-Modbus-Home-Assistant)
   register list with `python tools/generate_sungrow_profile.py <modbus_sungrow.yaml>`
