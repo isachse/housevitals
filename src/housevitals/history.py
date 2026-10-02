@@ -35,12 +35,6 @@ COUNTER_LOOKBACK = "7d"
 # series that ended earlier (see below) cannot win over the current one.
 LAST_VALUE_WINDOW_S = 120
 
-# Energy from integrated power (profile power_integration, device energy_from_power):
-# power is sampled every POWER_STEP_S; a period with less than POWER_MIN_COVERAGE of
-# its time covered by samples is marked partial (gaps count as zero, not extrapolated).
-POWER_STEP_S = 60
-POWER_MIN_COVERAGE = 0.95
-
 # One appliance data point can be stored as several Prometheus series: whenever a
 # label besides `appliance` changes (host name, version, ...) a new series starts and
 # the old one stops. Every query therefore combines all series of an appliance; this
@@ -95,6 +89,13 @@ class UnknownRegisterError(HistoryError, NotFoundError):
 def _promql_string(value: str) -> str:
     """Escape a value for a PromQL double-quoted string."""
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _replacements(app: Appliance) -> dict[str, str]:
+    """{device counter: derived counter} used instead of it (device energy_from_power)."""
+    if not app.config.energy_from_power:
+        return {}
+    return {rule.replaces: key for key, rule in app.profile.derived.items() if rule.replaces}
 
 
 def _promql_regex_alternatives(values: list[str]) -> str:
@@ -339,11 +340,16 @@ class History:
                 f"{len(bounds) - 1} {period}s requested, at most {MAX_PERIODS}; "
                 "use a coarser period or a shorter range.")
 
+        # With energy_from_power, a derived counter (integrated power) stands in for the
+        # device counter it replaces and is reported under that counter's key.
+        replaced = {app.name: _replacements(app) for app in apps}
         counters = {
             app.name: [self._series[(app.name, r.key)] for regs in app.groups.values()
-                       for r in regs if r.is_counter and (app.name, r.key) in self._series]
+                       for r in regs if r.is_counter and (app.name, r.key) in self._series
+                       and r.key not in replaced[app.name]]
             for app in apps
         }
+        out_key = {(app.name, derived): device for app in apps for device, derived in replaced[app.name].items()}
         all_series = [s for ss in counters.values() for s in ss]
         if not all_series:
             raise HistoryError("None of the selected appliances records energy counters.")
@@ -383,9 +389,6 @@ class History:
 
         await asyncio.gather(*(first(i, m) for i, m in wanted))
 
-        integrated = {app.name: await self._integrate(app, bounds) for app in apps
-                      if self._uses_power(app)}
-
         out: dict[str, Any] = {}
         for app in apps:
             periods, totals, empty = [], {}, 0
@@ -401,15 +404,11 @@ class History:
                         start_v = firsts[i].get(k)
                         if start_v is not None:
                             partial = True
+                    key = out_key.get((app.name, s.reg.key), s.reg.key)
                     if start_v is None or end_v is None or end_v < start_v:
-                        values[s.reg.key] = None
+                        values[key] = None
                         continue
-                    values[s.reg.key] = _round(end_v - start_v, 2)
-                if app.name in integrated:
-                    kwh, coverage = integrated[app.name][i]
-                    values.update(kwh)
-                    if coverage < POWER_MIN_COVERAGE:
-                        partial = True
+                    values[key] = _round(end_v - start_v, 2)
                 for key, value in values.items():
                     if value is not None:
                         totals[key] = _round(totals.get(key, 0) + value, 2)
@@ -423,7 +422,7 @@ class History:
                 periods.append(entry)
             out[app.name] = {
                 "type": app.profile.kind.replace("_", " "),
-                "energy_source": "integrated power" if app.name in integrated else "counters",
+                "energy_source": "integrated power" if replaced[app.name] else "counters",
                 "periods": periods,
                 "total": {"kWh": totals, **self._derived(app, totals)},
             }
@@ -433,51 +432,15 @@ class History:
             "period": period,
             "timezone": str(self.tz),
             "note": "kWh per period from the appliances' lifetime counters or, where "
-                    "energy_source is 'integrated power', from the recorded power (for "
-                    "devices whose counters are not updated). 'partial': the period is still "
-                    "running, recording started within it, or power samples are missing. "
-                    "Heat pump counters count whole kWh, so short periods are coarse.",
+                    "energy_source is 'integrated power', from counters the service integrates "
+                    "from the measured power (for devices whose counters are not updated; "
+                    "outages add nothing). 'partial': the period is still running or "
+                    "recording started within it. Device counters count whole kWh, so short "
+                    "periods are coarse.",
             "derived": {k: v for k, v in DERIVED_HELP.items()
                         if any(k in DERIVED.get(a.profile.name, {}) for a in apps)},
             "appliances": out,
         }
-
-    def _integrations(self, app: Appliance) -> list:
-        """The profile's power integrations whose data points are recorded."""
-        return [pi for pi in app.profile.power_integration.values()
-                if all((app.name, key) in self._series for key in pi.keys)]
-
-    def _uses_power(self, app: Appliance) -> bool:
-        return app.config.energy_from_power and bool(self._integrations(app))
-
-    async def _integrate(self, app: Appliance, bounds: list[datetime]) -> list[tuple[dict, float]]:
-        """Per period: ({counter: kWh}, share of the period covered by power samples)."""
-        integrations = self._integrations(app)
-        powers = sorted({pi.power for pi in integrations})
-
-        def point(key: str) -> str:
-            return f"max by (appliance) ({self._series[(app.name, key)].selector})"
-
-        def power(pi) -> str:
-            expr = point(pi.power)
-            if pi.state:  # only while the state has this raw value
-                expr = f"{expr} * on(appliance) ({point(pi.state)} == bool {pi.value})"
-            return expr
-
-        async def period(a: datetime, b: datetime) -> tuple[dict, float]:
-            duration = max(POWER_STEP_S, int((b - a).total_seconds()))
-            window = f"[{duration}s:{POWER_STEP_S}s]"
-            sums = await asyncio.gather(
-                *(self._instant(f"sum_over_time(({power(pi)}){window})", b) for pi in integrations))
-            counts = await asyncio.gather(
-                *(self._instant(f"count_over_time(({point(p)}){window})", b) for p in powers))
-            coverage = min(float(r[0]["value"][1]) * POWER_STEP_S / duration if r else 0.0 for r in counts)
-            kwh = {pi.counter: (_round(float(r[0]["value"][1]) * POWER_STEP_S / 3600 * pi.to_kw, 2)
-                                if r and coverage > 0 else None)
-                   for pi, r in zip(integrations, sums)}
-            return kwh, coverage
-
-        return await asyncio.gather(*(period(a, b) for a, b in zip(bounds, bounds[1:])))
 
     def _derived(self, app: Appliance, values: dict[str, float | None]) -> dict[str, Any]:
         result = {}

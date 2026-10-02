@@ -20,7 +20,8 @@ from typing import Any
 from .config import DeviceConfig, ServerConfig, ServiceConfig
 from .errors import UnavailableError
 from .modbus import ModbusClient, ModbusConnectError, ModbusReadError, decode
-from .registry import POLL_GROUPS, Profile, Register, load_profile, poll_group
+from .derived import DerivedValues
+from .registry import DERIVED, POLL_GROUPS, Profile, Register, load_profile, poll_group
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ class Appliance:
     failures: int = 0  # consecutive failed attempts while down
     retry_at: float = 0.0  # monotonic; before this, requests fail fast
     written_at: dict[str, float] = field(default_factory=dict)  # key -> wall clock of last write
+    derived_values: DerivedValues | None = None  # evaluates the profile's derived points
 
     @classmethod
     def create(cls, config: DeviceConfig, service: ServiceConfig) -> Appliance:
@@ -96,8 +98,9 @@ class Appliance:
             "slow": max(service.poll_slow, config.poll_interval or 0),
             "static": service.poll_static,
         }
+        intervals[DERIVED] = intervals["fast"]  # computed after polls, never read over Modbus
         for reg in profile.registers.values():
-            group = poll_group(reg, extra)
+            group = DERIVED if reg.register_type == DERIVED else poll_group(reg, extra)
             if group:
                 app.groups.setdefault(group, []).append(reg)
                 app.group_by_key[reg.key] = group
@@ -189,6 +192,10 @@ class Appliance:
         return failed
 
     async def poll(self, group: str) -> None:
+        if group == DERIVED:  # computed, never read over Modbus
+            if self.derived_values is not None:
+                self.derived_values.update(self)
+            return
         regs = self.groups[group]
         status = self.status[group]
         started = time.monotonic()
@@ -208,6 +215,8 @@ class Appliance:
         status.last_success = time.time()
         status.last_error = None
         self._mark_up()
+        if self.derived_values is not None:
+            self.derived_values.update(self)
         if group == "fast" and self.on_fast_poll is not None:
             self.on_fast_poll()
 
@@ -246,20 +255,23 @@ class Appliance:
         "stale": true instead of failing.
         """
         now = time.time()
-        missing = [r for r in regs if self.fresh(r, now) is None]
-        stale_keys: set[str] = set()
+        # derived points come from the cache only (computed after polls)
+        missing = [r for r in regs if r.register_type != DERIVED and self.fresh(r, now) is None]
+        stale_keys: set[str] = {r.key for r in regs if r.register_type == DERIVED
+                                and r.key in self.cache and self.fresh(r, now) is None}
         error: str | None = None
         if missing and self.fail_fast():  # known outage: answer from the cache at once
-            error, stale_keys = self.last_error, {r.key for r in missing}
+            error = self.last_error
+            stale_keys |= {r.key for r in missing}
         elif missing:
             try:
                 read_started = time.time()
                 results = await self.client.read(missing)
-                stale_keys = self._store(results, time.time(), read_started)
+                stale_keys |= self._store(results, time.time(), read_started)
                 self._mark_up()
             except ModbusReadError as err:
                 error = str(err)
-                stale_keys = {r.key for r in missing}
+                stale_keys |= {r.key for r in missing}
                 if isinstance(err, ModbusConnectError):
                     self._mark_down(error)
         now = time.time()
@@ -267,7 +279,8 @@ class Appliance:
         for reg in regs:
             entry = self.cache.get(reg.key)
             if entry is None:
-                out[reg.key] = {"value": None, "error": error or "no data"}
+                out[reg.key] = {"value": None, "error": error or (
+                    "computed after the next poll" if reg.register_type == DERIVED else "no data")}
                 continue
             data = {**entry.data, "age_s": round(now - entry.ts, 1)}
             # While the appliance is down every value is a last known one, however young.
@@ -306,9 +319,18 @@ class Appliance:
         self._mark_up()
         return words
 
+    def cache_derived(self, key: str, data: dict[str, Any], ts: float) -> None:
+        """Store a derived value (called by DerivedValues after a poll)."""
+        self.cache[key] = CacheEntry(data, ts)
+        status = self.status.get(DERIVED)
+        if status is not None:
+            status.last_attempt = status.last_success = ts
+
     async def read_now(self, reg: Register) -> dict[str, Any]:
         """Read one register from the device, bypassing the cache (fails fast while down).
         The result always carries "raw"."""
+        if reg.register_type == DERIVED:
+            raise ValueError(f"{reg.key} is derived, not a device register")
         read_started = time.time()
         words = await self.read_raw(reg.register_type, reg.address, reg.count)
         value, raw = decode(reg, words)
@@ -370,8 +392,10 @@ class Hub:
         self._tasks: list[asyncio.Task] = []
         # Set after every successful fast poll of any appliance.
         self.polled = asyncio.Event()
+        self.derived = DerivedValues(config.service.derived_state_file)
         for app in self.appliances.values():
             app.on_fast_poll = self.polled.set
+            app.derived_values = self.derived
 
     def get(self, name: str | None) -> Appliance:
         """Resolve a name or alias (raises ConfigError)."""
@@ -392,6 +416,8 @@ class Hub:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._tasks.clear()
+        if self.derived.counters:
+            self.derived.save()
         for app in self.appliances.values():
             await app.client.close()
 

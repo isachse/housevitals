@@ -91,9 +91,9 @@ class DeviceConfig:
     min_request_interval: float = 0.0
     # Registers that may be overridden (written) through the control API, by key.
     overrides: dict[str, OverrideRule] = field(default_factory=dict)
-    # Energy statistics from integrated power instead of the device's energy counters
-    # (for devices whose counters are not updated over Modbus; see the profile's
-    # power_integration).
+    # Energy statistics from the profile's derived counters (integrated power) instead
+    # of the device's energy counters (for devices whose counters are not updated over
+    # Modbus; see the profile's "derived" points with "replaces").
     energy_from_power: bool = False
 
     @classmethod
@@ -138,6 +138,9 @@ class DeviceConfig:
         )
 
 
+DEFAULT_DERIVED_STATE_FILE = "~/.local/state/housevitals/derived.json"
+
+
 @dataclass
 class ServiceConfig:
     """Settings for the long-running service (poller, metrics, REST API, MCP over HTTP)."""
@@ -166,6 +169,9 @@ class ServiceConfig:
     # accept a value and adjust it a few seconds later (the Brötje NEO limits the DHW
     # minimum to the maximum - 5 K after about 5 s); the first read-back misses that.
     override_verify_delay_s: float = 10.0
+    # Counters of derived data points (e.g. energy integrated from power) survive
+    # restarts here. None: not kept (the service sets DEFAULT_DERIVED_STATE_FILE).
+    derived_state_file: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ServiceConfig:

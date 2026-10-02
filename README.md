@@ -166,7 +166,7 @@ List your heat pumps and inverters in a JSON file and point the server at it wit
 | `timeout` | `5` | Request timeout in seconds |
 | `description` | – | Free text shown by `list_devices` |
 | `overrides` | `{}` | Registers that may be overridden through the control API, with limits (see [Control API](#control-api-overrides)) |
-| `energy_from_power` | `false` | Energy statistics from the recorded power instead of the device's energy counters (see [Energy from power](#energy-from-power)) |
+| `energy_from_power` | `false` | Energy statistics from the profile's derived counters (integrated power) instead of the device's energy counters (see [Derived data points](#derived-data-points)) |
 
 Top-level options: `lang` (default language for people: REST API labels and charts;
 see [Languages](#languages)) and `default_device` (name or alias used when a tool call
@@ -262,6 +262,7 @@ Modbus TCP ◄── poller (one serialised connection per appliance) ──► 
 | `instance_id` | `housevitals` | Prometheus `instance` label of all metrics; keep it fixed (see below) |
 | `control_token_file` | – | File with the bearer token for writing overrides (or env `HOUSEVITALS_CONTROL_TOKEN`); without a token the control API is read-only |
 | `override_state_file` | `~/.local/state/housevitals/overrides.json` | Active overrides and today's write counts, kept across restarts |
+| `derived_state_file` | `~/.local/state/housevitals/derived.json` | Counters of derived data points (e.g. energy integrated from power), kept across restarts |
 
 Per device: `extra_keys` (additionally polled and exported registers),
 `poll_interval` (overrides `poll_fast`), `min_request_interval`.
@@ -713,34 +714,49 @@ number. `null` means the device reports "not available" (e.g. sensor not fitted)
 
 Profiles live in `src/housevitals/profiles/*.json` and can be edited or extended.
 
-### Energy from power
+### Derived data points
 
-Some devices do not update their energy counters over Modbus: the Brötje BLW NEO
-reports its lifetime kWh counters, but they stay unchanged for days while the heat
-pump runs (the power values are live). Energy per day then comes out as 0 and the
-performance factor cannot be computed.
+A profile can declare data points that the service computes from other data points of
+the same appliance (`derived`). A derived data point behaves like a register: it is
+cached, exported as a metric, recorded, and readable with `read_values` and
+`get_history`; it is never read over Modbus. The service evaluates the rules after
+every poll, so queries, charts and Grafana read finished values instead of computing
+them at query time. Rules are data with a fixed set of operations, checked when the
+profile loads (an unknown operation, option or data point is an error); derived values
+describe the house and never write anything.
 
-A profile can therefore declare how each counter follows from a power data point
-(`power_integration`), optionally only while a state data point has a given value.
-The NEO profile computes electricity from `electrical_power` (W) and heat from
-`thermal_power` (kW), split into heating and hot water by `compressor_demand`
-(20 = heating, 30 = hot water):
+| Operation | Result |
+|-----------|--------|
+| `integrate` | Cumulative counter: between two consecutive samples of the source, `+= (s0 + s1) / 2 × scale × hours`. Optional `when: {key, raw}` counts only while that data point has the raw value (at the earlier sample). Gaps longer than `max_gap_s` (default 120) add nothing. |
+
+**Energy from power.** Some devices do not update their energy counters over Modbus:
+the Brötje BLW NEO reports its lifetime kWh counters, but they stay unchanged for days
+while the heat pump runs (the power values are live). The NEO profile therefore
+integrates electricity from `electrical_power` (W) and heat from `thermal_power` (kW),
+split into heating and hot water by `compressor_demand` (20 = heating, 30 = hot water):
 
 ```json
-"power_integration": {
-  "electricity_total":   { "power": "electrical_power", "to_kw": 0.001 },
-  "electricity_dhw":     { "power": "electrical_power", "to_kw": 0.001, "state": "compressor_demand", "value": 30 },
-  "heat_delivered_total": { "power": "thermal_power", "to_kw": 1 }
-}
+"derived": [
+  { "key": "electricity_dhw_from_power", "label": "Electricity – hot water (from power)", "unit": "kWh",
+    "category": "energy", "integrate": "electrical_power", "scale": 0.001,
+    "when": { "key": "compressor_demand", "raw": 30 }, "replaces": "electricity_dhw" }
+]
 ```
 
-With `"energy_from_power": true` on a device, `get_energy`, the performance factor
-chart and the energy REST endpoint sum the recorded power per period (one-minute
-steps, in Prometheus) instead of taking counter differences; the result says
-`"energy_source": "integrated power"`. Gaps in the recording count as zero and mark the
-period `partial` (less than 95 % covered). The Grafana heat pump bars for electricity,
-heat and performance factor per day use the power as well. The lifetime counters stay
-available as values.
+With `"energy_from_power": true` on a device, `get_energy`, the charts and the energy
+REST endpoint use each derived counter in place of the device counter it `replaces`
+(reported under the device counter's key; `"energy_source": "integrated power"`); the
+Grafana heat pump bars use them as well. Energy statistics then need one instant
+query per period boundary instead of integrating power in Prometheus.
+
+The counters are kept in `service.derived_state_file` (default
+`~/.local/state/housevitals/derived.json`) and continue across restarts; time the
+service did not run adds nothing (`uncovered_s` in the state file). To give new derived
+counters the history recorded before them, run
+[tools/backfill_derived.py](tools/backfill_derived.py) once before starting the version
+that adds them: it integrates the recorded values the same way, writes an OpenMetrics
+file for `promtool tsdb create-blocks-from openmetrics` and the state file the service
+continues from.
 
 - `iwr.json` and `isr.json` are generated from the MIT-licensed
   [ha-broetje](https://github.com/henrywiechert/ha-broetje) Home Assistant integration
@@ -892,6 +908,7 @@ profiles (register labels) and a table in the dashboard generator.
 | `registry.py` | Register profiles (JSON) and the poll plan (fast/slow/static) |
 | `modbus.py` | Modbus TCP client: one serialised connection per appliance, batching, decoding |
 | `hub.py` | Poller, cache and per-appliance status; the only way to the devices |
+| `derived.py` | Derived data points (rules from the profile, evaluated after every poll, persisted) |
 | `overrides.py` | Override manager: allow-list, leases, restore, write budget, persistence |
 | `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
 | `history.py` | Prometheus queries: history, calendar energy balance, runtimes |

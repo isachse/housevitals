@@ -2398,7 +2398,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05",
+          "expr": "max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump1\"}[1d]))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -2410,7 +2410,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05",
+          "expr": "max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump2\"}[1d]))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3445,7 +3445,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
+          "expr": "(max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump1\"}[1d]))) / (max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump1\"}[1d])))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3457,7 +3457,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667) / (sum_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 1.666666667e-05)",
+          "expr": "(max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump2\"}[1d]))) / (max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_electricity_from_power_kWh_total{appliance=\"heatpump2\"}[1d])))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,
@@ -3566,7 +3566,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump1\"}))[1d:1m] offset -1d) * 0.01666666667",
+          "expr": "max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump1\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump1\"}[1d]))",
           "legendFormat": "HP1",
           "range": true,
           "instant": false,
@@ -3578,7 +3578,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum_over_time((max by (appliance) (housevitals_thermal_power_kW{appliance=\"heatpump2\"}))[1d:1m] offset -1d) * 0.01666666667",
+          "expr": "max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump2\"}[1d] offset -1d)) - max by (appliance) (max_over_time(housevitals_heat_delivered_from_power_kWh_total{appliance=\"heatpump2\"}[1d]))",
           "legendFormat": "HP2",
           "range": true,
           "instant": false,

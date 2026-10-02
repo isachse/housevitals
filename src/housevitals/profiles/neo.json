@@ -2,40 +2,84 @@
  "name": "neo",
  "description": "Brötje BLW NEO (Heliotherm-based) via NEO-RKM or RS232-to-Modbus-TCP interface",
  "source": "Register layout per Brötje NEO-RKM manual; decoding cross-checked against community integrations",
- "power_integration": {
-  "electricity_total": {
-   "power": "electrical_power",
-   "to_kw": 0.001
+ "derived": [
+  {
+   "key": "electricity_total_from_power",
+   "label": "Electricity – total (from power)",
+   "label_de": "Strom – gesamt (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "electrical_power",
+   "scale": 0.001,
+   "replaces": "electricity_total"
   },
-  "electricity_heating": {
-   "power": "electrical_power",
-   "to_kw": 0.001,
-   "state": "compressor_demand",
-   "value": 20
+  {
+   "key": "electricity_heating_from_power",
+   "label": "Electricity – heating (from power)",
+   "label_de": "Strom – Heizen (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "electrical_power",
+   "scale": 0.001,
+   "when": {
+    "key": "compressor_demand",
+    "raw": 20
+   },
+   "replaces": "electricity_heating"
   },
-  "electricity_dhw": {
-   "power": "electrical_power",
-   "to_kw": 0.001,
-   "state": "compressor_demand",
-   "value": 30
+  {
+   "key": "electricity_dhw_from_power",
+   "label": "Electricity – hot water (from power)",
+   "label_de": "Strom – Warmwasser (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "electrical_power",
+   "scale": 0.001,
+   "when": {
+    "key": "compressor_demand",
+    "raw": 30
+   },
+   "replaces": "electricity_dhw"
   },
-  "heat_delivered_total": {
-   "power": "thermal_power",
-   "to_kw": 1
+  {
+   "key": "heat_delivered_total_from_power",
+   "label": "Heat delivered – total (from power)",
+   "label_de": "Gelieferte Wärme – gesamt (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "thermal_power",
+   "scale": 1,
+   "replaces": "heat_delivered_total"
   },
-  "heat_delivered_heating": {
-   "power": "thermal_power",
-   "to_kw": 1,
-   "state": "compressor_demand",
-   "value": 20
+  {
+   "key": "heat_delivered_heating_from_power",
+   "label": "Heat delivered – heating (from power)",
+   "label_de": "Gelieferte Wärme – Heizen (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "thermal_power",
+   "scale": 1,
+   "when": {
+    "key": "compressor_demand",
+    "raw": 20
+   },
+   "replaces": "heat_delivered_heating"
   },
-  "heat_delivered_dhw": {
-   "power": "thermal_power",
-   "to_kw": 1,
-   "state": "compressor_demand",
-   "value": 30
+  {
+   "key": "heat_delivered_dhw_from_power",
+   "label": "Heat delivered – hot water (from power)",
+   "label_de": "Gelieferte Wärme – Warmwasser (aus Leistung)",
+   "unit": "kWh",
+   "category": "energy",
+   "integrate": "thermal_power",
+   "scale": 1,
+   "when": {
+    "key": "compressor_demand",
+    "raw": 30
+   },
+   "replaces": "heat_delivered_dhw"
   }
- },
+ ],
  "registers": [
   {
    "key": "outdoor_temperature",
