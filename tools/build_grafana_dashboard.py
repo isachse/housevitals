@@ -35,6 +35,10 @@ FLOW = {"PV": YELLOW, "Haus": BLUE, "Batterie": AQUA, "Netz": ORANGE}
 DASH = {"fill": "dash", "dash": [10, 6]}
 DOT = {"fill": "dot", "dash": [0, 6]}
 
+# Window in which "now" tiles look for the newest value (the forecast dashboard's range
+# ends up to two days ahead).
+NOW_WINDOW = "3d:1m"
+
 _ids = iter(range(1, 1000))
 
 
@@ -66,14 +70,16 @@ def per_appliance(expr: str) -> str:
     return _SELECTOR.sub(combine, expr)
 
 
-def daily_energy(metric: str, appliance: str, to_kw: float) -> str:
-    """kWh per day from a power metric: sum of one-minute samples over the day.
-
-    Used for the heat pumps, whose energy counters are not updated over Modbus. The
-    bar at a day's start covers that day (see "offset -1d" above).
-    """
-    return (f'sum_over_time({M}{metric}{{appliance="{appliance}"}}[1d:1m] offset -1d)'
-            f" * {to_kw / 60:.10g}")
+def daily_energy(counter: str, appliance: str) -> str:
+    """kWh per day of a heat pump from its derived counter (integrated from the measured
+    power by the service, since the heat pumps' own counters are not updated over
+    Modbus): the counter at the end of the day minus the counter at its start. The
+    service's counter only resets if its state file is lost, so unlike increase() this
+    needs no reset detection (which a rounding step would trip) and no extrapolation.
+    The bar at a day's start covers that day (see "offset -1d" above)."""
+    sel = f'{M}{counter}_from_power_kWh_total{{appliance="{appliance}"}}'
+    return (f"max by (appliance) (max_over_time({sel}[1d] offset -1d))"
+            f" - max by (appliance) (max_over_time({sel}[1d]))")
 
 
 def target(expr: str, legend: str = "", instant: bool = False, interval: str | None = None) -> dict:
@@ -132,8 +138,12 @@ def stat(title, targets, grid, unit="none", decimals=None, overrides=None, mappi
     instead of its last reading as if it were current.
     """
     for t in targets:
+        # The newest value, also when the dashboard range is absolute (zoomed in, shifted):
+        # Grafana then ignores timeFrom and evaluates at the range end, which on the
+        # forecast dashboard lies in the future, where an instant query finds nothing.
+        t["expr"] = f"last_over_time(({t['expr']})[{NOW_WINDOW}])"
         if only_when_up:
-            t["expr"] = f"({t['expr']}) and on(appliance) max by (appliance) ({M}up) == 1"
+            t["expr"] += f" and on(appliance) last_over_time((max by (appliance) ({M}up))[{NOW_WINDOW}]) == 1"
         t["instant"], t["range"] = True, False
     defaults = {"unit": unit, "mappings": mappings or [],
                 "color": {"mode": "thresholds"} if thresholds else {"mode": "fixed", "fixedColor": GRAY},
@@ -362,11 +372,11 @@ def build() -> dict:
         description="Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).",
         overrides=[override("PV-Erzeugung", YELLOW), override("Hausverbrauch", BLUE),
                    override("Netzbezug", ORANGE), override("Einspeisung", VIOLET)]))
-    t = [target(daily_energy("electrical_power_watts", a, 0.001), s, interval="1d")
+    t = [target(daily_energy("electricity", a), s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
         "Wärmepumpen · Strom pro Tag", t, g(12, y, 12, 9), "kwatth", bars=True, decimals=1,
-        interval="1d", description="Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).",
+        interval="1d", description="Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung aufsummiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).",
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
     y += 9
 
@@ -401,14 +411,14 @@ def build() -> dict:
     t, _ = per_hp("compressor_demand")
     panels.append(state_timeline("Verdichteranforderung", t, g(12, y, 12, 5), demand))
     y += 5
-    t = [target(f'({daily_energy("thermal_power_kW", a, 1)}) / ({daily_energy("electrical_power_watts", a, 0.001)})',
+    t = [target(f'({daily_energy("heat_delivered", a)}) / ({daily_energy("electricity", a)})',
                 s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
         "Arbeitszahl pro Tag", t, g(0, y, 12, 8), "none", bars=True, decimals=1, interval="1d",
         description="Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.",
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
-    t = [target(daily_energy("thermal_power_kW", a, 1), s, interval="1d")
+    t = [target(daily_energy("heat_delivered", a), s, interval="1d")
          for a, s, _ in HEAT_PUMPS]
     panels.append(timeseries(
         "Wärme pro Tag", t, g(12, y, 12, 8), "kwatth", bars=True, decimals=0, interval="1d",
@@ -715,7 +725,7 @@ TRANSLATIONS = {
             "Last Modbus request succeeded. Nothing shown = the service delivers no data.",
         "Tagessummen aus den Gesamtzählern. Der Balken des laufenden Tages wächst bis Mitternacht (Tagesgrenzen in UTC).":
             "Daily totals from the lifetime counters. Today's bar grows until midnight (day boundaries in UTC).",
-        "Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung summiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).":
+        "Stromverbrauch je Wärmepumpe und Tag, aus der gemessenen Leistung aufsummiert (die Energiezähler der Wärmepumpen werden über Modbus nicht laufend aktualisiert).":
             "Electricity per heat pump and day, summed from the measured power (the heat pumps' energy counters are not updated continuously over Modbus).",
         "Wärme / Strom je Tag, beide aus der gemessenen Leistung summiert.":
             "Heat / electricity per day, both summed from the measured power.",

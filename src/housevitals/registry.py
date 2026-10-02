@@ -36,10 +36,10 @@ class Register:
             "key": self.key,
             "label": self.display_label(lang),
             "category": self.category,
-            "address": self.address,
             "register_type": self.register_type,
-            "data_type": self.data_type,
         }
+        if self.register_type != DERIVED:
+            info["address"], info["data_type"] = self.address, self.data_type
         if self.unit:
             info["unit"] = self.unit
         if self.scale != 1:
@@ -72,21 +72,44 @@ class Register:
         return [self.label, *(text for _, text in self.translations)]
 
 
-class PowerIntegration:
-    """How to compute an energy counter from a power data point (optional per profile).
+DERIVED = "derived"  # register_type of derived data points (never read over Modbus)
 
-    For devices whose energy counters are not updated over Modbus: energy per period
-    = sum of power over time. `state`/`value`: only while that state data point has
-    this raw value (e.g. compressor_demand == 30 for hot water).
+
+@dataclass(frozen=True)
+class DerivedRule:
+    """How a derived data point is computed from other data points of the same appliance.
+
+    The only operation so far is `integrate`: a cumulative counter, value += source ×
+    scale × hours between two consecutive samples (trapezoid), optionally only while the
+    `when` data point has a given raw value (the state at the earlier sample counts).
+    `replaces`: energy statistics use this point instead of that (device) counter when
+    the device sets energy_from_power. Rules are data, not code: an unknown operation or
+    data point is an error when the profile is loaded.
     """
 
-    def __init__(self, counter: str, power: str, to_kw: float, state: str | None = None,
-                 value: int | None = None):
-        self.counter, self.power, self.to_kw, self.state, self.value = counter, power, to_kw, state, value
+    key: str
+    integrate: str
+    scale: float = 1.0
+    when_key: str | None = None
+    when_raw: int | None = None
+    replaces: str | None = None
+    max_gap_s: float = 120.0  # longer gaps between samples add nothing
 
     @property
-    def keys(self) -> list[str]:
-        return [self.power] + ([self.state] if self.state else [])
+    def sources(self) -> list[str]:
+        return [self.integrate] + ([self.when_key] if self.when_key else [])
+
+    def describe(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"integrate": self.integrate, "scale": self.scale}
+        if self.when_key:
+            out["when"] = {"key": self.when_key, "raw": self.when_raw}
+        if self.replaces:
+            out["replaces"] = self.replaces
+        return out
+
+
+DERIVED_OPTIONS = {"key", "label", "unit", "category", "integrate", "scale", "when", "replaces",
+                   "max_gap_s"}
 
 
 @dataclass
@@ -95,7 +118,7 @@ class Profile:
     description: str
     kind: str = "heat_pump"  # "heat_pump" or "inverter"
     registers: dict[str, Register] = field(default_factory=dict)
-    power_integration: dict[str, PowerIntegration] = field(default_factory=dict)
+    derived: dict[str, DerivedRule] = field(default_factory=dict)
 
     @property
     def categories(self) -> dict[str, int]:
@@ -141,9 +164,6 @@ def load_profile(name: str, zones: list[int] | None = None) -> Profile:
     profile = Profile(
         name=raw["name"], description=raw["description"], kind=raw.get("kind", "heat_pump")
     )
-    for counter, spec in raw.get("power_integration", {}).items():
-        profile.power_integration[counter] = PowerIntegration(
-            counter, spec["power"], float(spec["to_kw"]), spec.get("state"), spec.get("value"))
     default_word_order = raw.get("word_order", "big")
     for item in raw["registers"]:
         reg = Register(
@@ -170,11 +190,37 @@ def load_profile(name: str, zones: list[int] | None = None) -> Profile:
         if zones is not None and reg.zone is not None and reg.zone not in zones:
             continue
         profile.registers[reg.key] = reg
-    for integration in profile.power_integration.values():
-        missing = [k for k in (integration.counter, *integration.keys) if k not in profile.registers]
-        if missing:
-            raise ValueError(f"Profile '{name}': power_integration refers to unknown register(s) {missing}")
+    for item in raw.get("derived", []):
+        _add_derived(profile, item)
     return profile
+
+
+def _add_derived(profile: Profile, item: dict[str, Any]) -> None:
+    where = f"Profile '{profile.name}', derived '{item.get('key')}'"
+    unknown = set(item) - DERIVED_OPTIONS - {k for k in item if k.startswith("label_")}
+    if unknown:
+        raise ValueError(f"{where}: unknown option(s) {sorted(unknown)} (operations: integrate)")
+    if "integrate" not in item:
+        raise ValueError(f"{where}: needs an operation (integrate)")
+    key = item["key"]
+    if key in profile.registers:
+        raise ValueError(f"{where}: key already used by a register")
+    when = item.get("when") or {}
+    rule = DerivedRule(key, item["integrate"], float(item.get("scale", 1.0)), when.get("key"),
+                       when.get("raw"), item.get("replaces"), float(item.get("max_gap_s", 120.0)))
+    for ref in [*rule.sources, *([rule.replaces] if rule.replaces else [])]:
+        reg = profile.registers.get(ref)
+        if reg is None or reg.register_type == DERIVED:
+            raise ValueError(f"{where}: refers to unknown register '{ref}'")
+    if not profile.registers[rule.integrate].is_numeric or profile.registers[rule.integrate].enum:
+        raise ValueError(f"{where}: '{rule.integrate}' is not a numeric measurement")
+    if rule.when_key and not isinstance(rule.when_raw, int):
+        raise ValueError(f"{where}: when needs an integer 'raw' value")
+    profile.registers[key] = Register(
+        key=key, address=-1, register_type=DERIVED, data_type="float", count=0, scale=1,
+        label=item.get("label", key), category=item.get("category", "derived"), unit=item.get("unit"),
+        translations=tuple((k[len("label_"):], v) for k, v in item.items() if k.startswith("label_") and v))
+    profile.derived[key] = rule
 
 
 POLL_GROUPS = ("fast", "slow", "static")

@@ -107,7 +107,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"})",
+          "expr": "last_over_time((max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"}))[3d:1m])",
           "legendFormat": "today",
           "range": false,
           "instant": true,
@@ -175,7 +175,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"})",
+          "expr": "last_over_time((max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"}))[3d:1m])",
           "legendFormat": "tomorrow",
           "range": false,
           "instant": true,
@@ -243,7 +243,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_pv_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_pv_energy_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "PV",
           "range": false,
           "instant": true,
@@ -329,7 +329,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "State of charge",
           "range": false,
           "instant": true,
