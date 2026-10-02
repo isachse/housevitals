@@ -779,6 +779,7 @@ snowfall, solar radiation and cloud cover as `housevitals_weather_*` metrics
 (`source="open-meteo-archive"`), so recorded data can be related to past weather,
 e.g. heating hours vs. outdoor temperature. Query over windows of at least an hour,
 e.g. `avg_over_time(housevitals_weather_temperature_celsius[1d])`.
+
 ### Sungrow history from iSolarCloud
 
 iSolarCloud exports a yearly "Plant report" CSV with the plant's lifetime counters every
