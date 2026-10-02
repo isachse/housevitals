@@ -807,6 +807,11 @@ a folder per year), with seven lifetime counters every hour (`id;unix_time;value
 They are not available over Modbus. Compared with the recorded compressor runs: id
 3375 counts compressor starts, 3171 the operating hours for hot water, 3172 for
 heating, 3173 their sum (whole hours). The meaning of 241, 3188 and 3189 is unknown.
+3375 was only verified on a heat pump in hot-water-only operation; it may count the
+hot-water starts only (a module whose heat pump no longer makes hot water stopped
+writing 3375, 3171 and 3173 at all). Missing values are gaps, not zeros. If a card was
+briefly in another module, that module's counters appear as one set of values out of
+line; the importer drops such times and reports them.
 [tools/import_rkm_log.py](tools/import_rkm_log.py) turns the files into OpenMetrics for
 `promtool` as separate metrics (`housevitals_rkm_compressor_starts_total`,
 `…_rkm_dhw_hours_total`, `…_rkm_heating_hours_total`, `…_rkm_operating_hours_total`,

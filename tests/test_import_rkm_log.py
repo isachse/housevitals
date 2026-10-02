@@ -68,3 +68,18 @@ def test_cli(tmp_path, capsys):
     assert rkm.main([str(folder), "--appliance", "heatpump2", "--out", str(out)]) == 0
     assert out.read_text().endswith("# EOF\n")
     assert "1 days from 2026-10-02" in capsys.readouterr().out
+
+
+def test_values_from_another_module_are_dropped(tmp_path):
+    # the card was briefly in another module: one set of foreign counters in between
+    text = ("3172;1000;8800\n3375;1000;2770\n"
+            "3172;2000;8805\n"
+            "3172;3000;9347\n3375;3000;594\n3171;3000;1287\n"
+            "3172;4000;8805\n3172;5000;8806\n")
+    folder = _card(tmp_path, {"20261002": text})
+    series, _, _ = rkm.read_logs([folder])
+    [note] = rkm.remove_foreign(series)
+    assert "out of line" in note
+    assert 3000 not in series["3172"] and 3000 not in series["3375"] and series["3171"] == {}
+    assert series["3172"][4000] == 8805  # the real samples after the spike stay
+    assert rkm.check(series) == []
