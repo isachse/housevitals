@@ -362,7 +362,9 @@ battery is export; windows of export above `surplus_threshold_w` are reported.
 | Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart; dashboard **Prognose** / **Forecast** for today and tomorrow (see [Grafana dashboard](#grafana-dashboard)) |
 
 If Open-Meteo is unreachable, the previous forecast stays in use and is marked
-`stale` with `last_error`; without any forecast yet the endpoints return `503`.
+`stale` with `last_error`; without any forecast yet the endpoints return `503` at once
+(with `Retry-After`): requests never wait for Open-Meteo, the background loop fetches.
+Each request to Open-Meteo sends the configured coordinates.
 Forecasts are estimates: timing and strength of clouds are the main uncertainty.
 Open-Meteo's free API is for non-commercial use; see its terms.
 
@@ -486,8 +488,10 @@ to correct a setpoint: `{"value": 42, "restore_value": 42, "duration_s": 60, ...
 | Few writes | Nothing is written if the device already has the value. Controllers often keep setpoints in EEPROM, hence the daily write budget (`429` with `Retry-After` when used up). |
 | Manual changes win | If the register no longer holds the override value when it ends, someone changed it on the device; it is left alone and logged. |
 | Restarts | Overrides are persisted (`override_state_file`, mode 600). A restart keeps running overrides; expired ones are restored on start. |
+| Lease before write | The override is persisted before the device is written. If the request fails or is cancelled after the write, or the service stops during the check, the override ends at once and the previous value is restored: a value on the device always has an override that brings it back. |
+| Per register | Requests are serialised per register; the check of one register never holds up another or the restore of ended overrides. |
 | Appliance down | Applying fails with `503`. A restore that fails is retried after the appliance's back-off (state `restoring`); meanwhile the register cannot be overridden again. |
-| Errors | `400` invalid value/duration, `401` wrong token, `403` no token configured, `404` not allow-listed, `409` conflict, `422` value adjusted by the device, `429` write budget, `502` device rejected the write, `503` unreachable. |
+| Errors | `400` invalid value/duration, `401` wrong token, `403` no token configured, `404` not allow-listed, `409` conflict, `422` value adjusted by the device (`code: "override_rejected"`; FastAPI's request validation also uses `422`, without `code`), `429` write budget, `502` device rejected the write, `503` unreachable. Every error body has `detail` and a stable `code`. |
 
 The device's own schedule stays the fallback: if the whole host is off while an
 override is active, the register keeps the override value until the service runs again.

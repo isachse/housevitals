@@ -89,6 +89,12 @@ class Calibration:
 
 
 class Measurements(Protocol):
+    """What the forecast needs from the house (the only way it reaches the house)."""
+
+    async def battery(self) -> tuple[float, float]:
+        """(state of charge in %, usable capacity in kWh); (0, 0) without a battery."""
+        ...
+
     async def array_power(self, array: PVArray, start: float, end: float) -> dict[float, float]:
         """15-minute mean power in W by interval end."""
 
@@ -148,20 +154,21 @@ class _State:
     weather: list[WeatherPoint] = field(default_factory=list)
     fetched_at: float | None = None
     last_error: str | None = None
+    last_attempt: float | None = None
     calibration: dict[str, Calibration] = field(default_factory=dict)
     load_profile: dict[str, float] = field(default_factory=dict)  # "HH:MM" local -> W
 
 
 class ForecastService:
-    def __init__(self, hub: Hub, config: ForecastConfig, measurements: Measurements, timezone: str,
+    def __init__(self, config: ForecastConfig, measurements: Measurements, timezone: str,
                  weather: OpenMeteo | None = None):
-        self.hub = hub
         self.config = config
         self.measurements = measurements
         self.tz = ZoneInfo(timezone)
         self.source = weather or OpenMeteo(config)
         self.state = _State()
         self._task: asyncio.Task | None = None
+        self._refreshing = asyncio.Lock()  # one fetch at a time
 
     def now(self) -> float:
         return time.time()
@@ -169,9 +176,14 @@ class ForecastService:
     # ------------------------------------------------------------------ refresh
     async def refresh(self) -> None:
         """Fetch the weather, recalibrate and rebuild the load profile."""
+        async with self._refreshing:
+            await self._refresh()
+
+    async def _refresh(self) -> None:
+        self.state.last_attempt = self.now()
         try:
             weather = await self.source.fetch(self.config.calibration_days)
-        except (httpx.HTTPError, UnavailableError, ValueError, KeyError) as err:
+        except (httpx.HTTPError, UnavailableError, ValueError, KeyError, TypeError) as err:
             message = str(err) or type(err).__name__
             if self.state.last_error != message:
                 _LOGGER.warning("PV forecast: Open-Meteo not available: %s", message)
@@ -209,12 +221,23 @@ class ForecastService:
             self._task = None
 
     async def ensure(self) -> None:
-        """A forecast must exist (fetch now if the loop has not yet, e.g. stdio mode)."""
-        if not self.state.weather:
-            try:
-                await self.refresh()
-            except UnavailableError as err:
-                raise ForecastUnavailableError(str(err), retry_after=RETRY_S) from err
+        """A forecast must exist. Requests never wait for Open-Meteo while the background
+        loop runs; without the loop (stdio mode, tests) the first request fetches, at most
+        once per RETRY_S after a failure."""
+        if self.state.weather:
+            return
+        s = self.state
+        since = None if s.last_attempt is None else self.now() - s.last_attempt
+        if self._task is not None or self._refreshing.locked() or (s.last_error and since < RETRY_S):
+            retry = RETRY_S - since if since is not None and s.last_error else 30.0
+            raise ForecastUnavailableError(
+                "No weather forecast yet" + (f" (Open-Meteo: {s.last_error})" if s.last_error else
+                                             "; it is being fetched"),
+                retry_after=max(1.0, retry))
+        try:
+            await self.refresh()
+        except UnavailableError as err:
+            raise ForecastUnavailableError(str(err), retry_after=RETRY_S) from err
 
     # ------------------------------------------------------------------ model
     def modelled_power(self, array: PVArray, point: WeatherPoint) -> float:
@@ -318,13 +341,24 @@ class ForecastService:
         return out
 
     def day_energy(self) -> dict[str, float]:
-        """Forecast PV energy in kWh for "today" and "tomorrow" (whole days)."""
-        out = {}
+        """Forecast PV energy in kWh for "today" and "tomorrow" (whole days); {} without a forecast."""
+        out: dict[str, float] = {}
+        if not self.state.weather:
+            return out
         for label, d in zip(("today", "tomorrow"), self._days()):
             start, end = self._day_bounds(d)
             out[label] = sum(self.pv_power(p)["total"] for p in self.state.weather
                              if start < p.end <= end) * STEP_S / 3.6e6
         return out
+
+    def performance_ratios(self) -> dict[str, float]:
+        """Calibrated performance ratio per array (arrays not calibrated yet are left out)."""
+        return {name: cal.performance_ratio for name, cal in self.state.calibration.items()
+                if cal.calibrated}
+
+    def age_s(self) -> float | None:
+        """Age of the forecast in use in seconds; None before the first fetch."""
+        return None if self.state.fetched_at is None else self.now() - self.state.fetched_at
 
     # ------------------------------------------------------------------ views
     def _day_bounds(self, day: date) -> tuple[float, float]:
@@ -358,8 +392,9 @@ class ForecastService:
 
     async def pv_forecast(self, day: str = "", resolution: str = "1h") -> dict[str, Any]:
         """Forecast power per interval and energy per day (today, tomorrow)."""
+        days = self._select_days(day)  # validate before anything else
+        _step_seconds(resolution)
         await self.ensure()
-        days = self._select_days(day)
         now = self.now()
         out_days, intervals = {}, []
         for d in days:
@@ -382,11 +417,12 @@ class ForecastService:
 
     async def weather(self, day: str = "", resolution: str = "1h") -> dict[str, Any]:
         """Temperature, clouds, rain and snow per interval; extremes and sums per day."""
+        days = self._select_days(day)  # validate before anything else
+        _step_seconds(resolution)
         await self.ensure()
-        _step_seconds(resolution)  # validate
         out_days, rows = {}, []
         by_end = {p.end: p for p in self.state.weather}
-        for d in self._select_days(day):
+        for d in days:
             start, end = self._day_bounds(d)
             points = [p for p in self.state.weather if start < p.end <= end]
             for p in points:
@@ -435,6 +471,8 @@ class ForecastService:
 
     async def surplus(self, threshold_w: float | None = None, resolution: str = "") -> dict[str, Any]:
         """Simulate the battery from now to the end of tomorrow; windows of grid export."""
+        if resolution:
+            _step_seconds(resolution)  # validate before anything else
         await self.ensure()
         threshold = self.config.surplus_threshold_w if threshold_w in (None, 0) else float(threshold_w)
         soc, capacity = await self._battery()
@@ -551,17 +589,9 @@ class ForecastService:
         return windows
 
     async def _battery(self) -> tuple[float, float]:
-        """(state of charge in %, capacity in kWh) from the inverter; (0, 0) without battery."""
-        cfg = self.config
-        if not (cfg.battery_soc and cfg.battery_capacity):
+        if not (self.config.battery_soc and self.config.battery_capacity):
             return 0.0, 0.0
-        app = self.hub.get(cfg.appliance)
-        regs = [app.profile.registers[k] for k in (cfg.battery_soc, cfg.battery_capacity)]
-        values = await app.read(regs)
-        soc, capacity = (values[r.key].get("value") for r in regs)
-        if soc is None or not capacity:
-            return 0.0, 0.0
-        return float(soc), float(capacity)
+        return await self.measurements.battery()
 
 
 def _snow_water(p: WeatherPoint) -> float | None:
@@ -591,25 +621,36 @@ def _step_seconds(resolution: str) -> int:
     raise ForecastRequestError("resolution must be 15m or 1h")
 
 
-class PrometheusMeasurements:
-    """Measurements from the recorded history (15-minute means, all series combined)."""
+class HouseMeasurements:
+    """Measurements of the house: live values from the hub's cache, history from Prometheus
+    (15-minute means, all series combined). Uses only the public interfaces of both."""
 
-    def __init__(self, history, appliance: str, load_key: str):
+    def __init__(self, hub: Hub, history, config: ForecastConfig):
+        self.hub = hub
         self.history = history
-        self.appliance = appliance
-        self.load_key = load_key
+        self.config = config
 
-    def _point(self, key: str) -> str:
-        app = self.history.hub.get(self.appliance)
-        return f"max by (appliance) ({self.history.series(app, key).selector})"
+    async def battery(self) -> tuple[float, float]:
+        cfg = self.config
+        app = self.hub.get(cfg.appliance)
+        regs = [app.profile.registers[k] for k in (cfg.battery_soc, cfg.battery_capacity)]
+        values = await app.read(regs)  # from the cache while it is fresh
+        soc, capacity = (values[r.key].get("value") for r in regs)
+        if soc is None or not capacity:
+            return 0.0, 0.0
+        return float(soc), float(capacity)
 
     async def _series(self, expr: str, start: float, end: float) -> dict[float, float]:
         start = math.ceil(start / STEP_S) * STEP_S  # align to quarter-hour ends
         if start > end:
             return {}
         query = f"avg_over_time(({expr})[{STEP_S}s:15s])"
-        result = await self.history._range(query, datetime.fromtimestamp(start), datetime.fromtimestamp(end), STEP_S)
+        result = await self.history.query_range(query, datetime.fromtimestamp(start),
+                                                datetime.fromtimestamp(end), STEP_S)
         return {float(t): float(v) for r in result for t, v in r["values"]}
+
+    def _point(self, key: str) -> str:
+        return self.history.point(self.config.appliance, key)
 
     async def array_power(self, array: PVArray, start: float, end: float) -> dict[float, float]:
         expr = (self._point(array.power) if array.power
@@ -617,4 +658,4 @@ class PrometheusMeasurements:
         return await self._series(expr, start, end)
 
     async def load_power(self, start: float, end: float) -> dict[float, float]:
-        return await self._series(self._point(self.load_key), start, end)
+        return await self._series(self._point(self.config.load), start, end)
