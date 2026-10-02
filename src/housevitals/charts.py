@@ -118,10 +118,10 @@ Builder = Callable[["ChartService", _Request, datetime, datetime],
 
 
 class ChartService:
-    def __init__(self, hub: Hub, history: History):
+    def __init__(self, hub: Hub, history: History, forecast=None):
         self.hub = hub
         self.history = history
-        self.forecast = None  # ForecastService, set when a forecast is configured
+        self.forecast = forecast  # ForecastService when a forecast is configured
         self.default_lang = hub.config.lang
         self._cache: OrderedDict[CacheKey, ChartImage] = OrderedDict()
         # Cached images with a "stale" badge: key -> (generated_at of the original, png)

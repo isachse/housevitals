@@ -65,8 +65,13 @@ def _clear_sky_weather(start: float, days: int, factor: float = 1.0) -> dict:
 class Measured:
     """Stub measurements: array power = ratio × model, constant house load."""
 
-    def __init__(self, service_ref, ratios: dict[str, float], load_w: float = 500.0):
+    def __init__(self, service_ref, ratios: dict[str, float], load_w: float = 500.0,
+                 soc: float = 50.0, capacity: float = 10.0):
         self.service_ref, self.ratios, self.load_w = service_ref, ratios, load_w
+        self.soc, self.capacity = soc, capacity
+
+    async def battery(self):
+        return self.soc, self.capacity
 
     async def array_power(self, array, start, end):
         if array.name not in self.ratios:
@@ -90,19 +95,18 @@ def _config(**over) -> ForecastConfig:
                           calibration_days=3, **over)
 
 
+def _hub() -> Hub:
+    return Hub(ServerConfig(devices=[DeviceConfig(name="inverter", host="127.0.0.1", profile="sungrow_sh")]))
+
+
 def _service(weather_answer, ratios=None, soc=50.0, capacity=10.0, **over) -> ForecastService:
-    server = ServerConfig(devices=[DeviceConfig(name="inverter", host="127.0.0.1", profile="sungrow_sh")])
     config = _config(**over)
     transport = httpx.MockTransport(weather_answer)
     service = None
-    measured = Measured(lambda: service, ratios if ratios is not None else {"south": 0.8})
-    service = ForecastService(Hub(server), config, measured, "Europe/Berlin", OpenMeteo(config, transport))
+    measured = Measured(lambda: service, ratios if ratios is not None else {"south": 0.8},
+                        soc=soc, capacity=capacity)
+    service = ForecastService(config, measured, "Europe/Berlin", OpenMeteo(config, transport))
     service.now = lambda: NOW
-
-    async def battery():
-        return soc, capacity
-
-    service._battery = battery
     return service
 
 
@@ -181,10 +185,45 @@ async def test_open_meteo_outage():
     kept = await service.pv_forecast("tomorrow")  # previous forecast still served
     assert kept["stale"] is True and "down" in kept["last_error"] and kept["days"]
 
-    fresh = _service(lambda r: (_ for _ in ()).throw(httpx.ConnectError("down")))
+    attempts = []
+
+    def down(request):
+        attempts.append(request)
+        raise httpx.ConnectError("down")
+
+    fresh = _service(down)
     with pytest.raises(ForecastUnavailableError) as err:
         await fresh.pv_forecast()
     assert err.value.status == 503 and err.value.retry_after
+    with pytest.raises(ForecastRequestError):  # invalid input is reported first
+        await fresh.pv_forecast("next week")
+    with pytest.raises(ForecastUnavailableError) as err:  # no new attempt within RETRY_S
+        await fresh.surplus()
+    assert len(attempts) == 1 and "down" in str(err.value) and 0 < err.value.retry_after <= 300
+
+
+async def test_requests_do_not_wait_for_open_meteo_while_the_loop_runs():
+    gate = asyncio.Event()
+
+    async def slow(request):
+        await gate.wait()  # Open-Meteo hangs
+        return _answer()(request)
+
+    service = _service(lambda r: httpx.Response(200))  # replaced below
+    service.source = OpenMeteo(service.config, httpx.MockTransport(slow))
+    await service.start()
+    await asyncio.sleep(0.05)
+    started = asyncio.get_running_loop().time()
+    with pytest.raises(ForecastUnavailableError, match="being fetched") as err:
+        await service.pv_forecast()
+    assert asyncio.get_running_loop().time() - started < 0.1 and err.value.retry_after
+    gate.set()
+    for _ in range(50):
+        await asyncio.sleep(0.02)
+        if service.state.weather:
+            break
+    assert (await service.pv_forecast("tomorrow"))["days"]
+    await service.stop()
 
 
 def test_forecast_config():
@@ -206,7 +245,7 @@ async def test_mcp_and_rest():
     service = _service(_answer(), ratios={"south": 0.8, "flat": 0.6})
     server_config = ServerConfig(devices=[DeviceConfig(name="inverter", host="127.0.0.1", profile="sungrow_sh")],
                                  service=ServiceConfig())
-    services = Services(server_config, service.hub, forecast=service)
+    services = Services(server_config, _hub(), forecast=service)
     mcp = build_server(services)
     names = {t.name for t in await mcp.list_tools()}
     assert {"get_pv_forecast", "get_surplus_windows", "get_weather_forecast"} <= names
@@ -313,11 +352,11 @@ async def test_pv_forecast_chart():
         async def history(self, *args, **kwargs):
             raise HistoryError("no data in this time range")
 
-    charts = ChartService(service.hub, NoHistory())
-    assert "pv_forecast" not in [c["chart"] for c in charts.catalog()]  # no forecast configured
+    without = ChartService(_hub(), NoHistory())
+    assert "pv_forecast" not in [c["chart"] for c in without.catalog()]  # no forecast configured
     with pytest.raises(UnknownChartError, match="forecast"):
-        await charts.get("pv_forecast")
-    charts.forecast = service
+        await without.get("pv_forecast")
+    charts = ChartService(_hub(), NoHistory(), service)
     assert "pv_forecast" in [c["chart"] for c in charts.catalog()]
     image = await charts.get("pv_forecast", lang="de")
     assert image.png.startswith(b"\x89PNG") and image.summary["windows"]
