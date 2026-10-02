@@ -90,7 +90,7 @@ def api_target(path: str, field: str) -> dict:
     return {"datasource": API, "type": "json", "source": "url", "parser": "backend",
             "format": "timeseries", "url": f"{API_URL}/{path}", "url_options": {"method": "GET"},
             "root_selector": "intervals",
-            "columns": [{"selector": "ts", "text": "Zeit", "type": "timestamp_epoch_s"},
+            "columns": [{"selector": "ts", "text": "time", "type": "timestamp_epoch_s"},
                         {"selector": field, "text": field, "type": "number"}]}
 
 
@@ -117,8 +117,8 @@ def _finish(panel: dict, targets: list[dict]) -> dict:
     for ref, t in zip("ABCDEFGHIJKLMNOP", targets):
         t["refId"] = ref
     panel["id"] = next(_ids)
-    sources = {t["datasource"]["uid"] for t in targets}
-    panel["datasource"] = DS if sources == {DS["uid"]} else MIXED
+    sources = {t["datasource"]["uid"]: t["datasource"] for t in targets}
+    panel["datasource"] = next(iter(sources.values())) if len(sources) == 1 else MIXED
     panel["targets"] = targets
     return panel
 
@@ -389,7 +389,10 @@ def build() -> dict:
     t, o = per_hp("electrical_power_watts")
     panels.append(timeseries("Leistungsaufnahme", t, g(0, y, 12, 8), "watt", o, min_=0))
     t, o = per_hp("outdoor_temperature_celsius")
-    panels.append(timeseries("Außentemperatur", t, g(12, y, 12, 8), "celsius", o))
+    t.append(target(f"{M}forecast_temperature_celsius{{}}", "Open-Meteo"))
+    o.append(override("Open-Meteo", GRAY, dashed=True))
+    panels.append(timeseries("Außentemperatur", t, g(12, y, 12, 8), "celsius", o,
+                             description="Gestrichelt: Lufttemperatur laut Wettervorhersage (Open-Meteo, 2 m)."))
     y += 8
     t, _ = per_hp("compressor")
     panels.append(state_timeline("Verdichter", t, g(0, y, 12, 5), onoff))
@@ -490,12 +493,56 @@ def build() -> dict:
         "links": [
             {"title": "Prometheus", "type": "link", "url": "http://localhost:9090", "targetBlank": True},
             {"title": "REST-API", "type": "link", "url": "http://localhost:8080/docs", "targetBlank": True},
-            {"title": "PV-Prognose", "type": "link", "url": "/d/pv-forecast", "targetBlank": False},
+            {"title": "Prognose", "type": "link", "url": "/d/pv-forecast", "targetBlank": False},
         ],
         "templating": {"list": []},
         "annotations": {"list": []},
         "panels": panels,
     }
+
+
+def weather_panels(y: int) -> list[dict]:
+    """Outdoor temperature measured vs. forecast, precipitation, and their difference."""
+    t, o = per_hp("outdoor_temperature_celsius")
+    t.append(api_target("forecast/weather?resolution=15m", "temperature_c"))  # refId C
+    o.append(by_ref("C", "Open-Meteo", GRAY, dashed=True))
+    temperature = timeseries(
+        "Außentemperatur", t, g(0, y, 12, 9), "celsius", o,
+        description="Durchgezogen: Außenfühler der Wärmepumpen, gestrichelt: Vorhersage (Open-Meteo, "
+                    "Lufttemperatur in 2 m).")
+    bars = [{"id": "custom.drawStyle", "value": "bars"}, {"id": "custom.fillOpacity", "value": 80},
+            {"id": "custom.lineWidth", "value": 1}, {"id": "custom.barAlignment", "value": 1}]
+    right = {"id": "custom.axisPlacement", "value": "right"}
+    stacked = {"id": "custom.stacking", "value": {"mode": "normal", "group": "precipitation"}}
+    url = "forecast/weather?resolution=1h"
+    precipitation = timeseries(
+        "Niederschlag", [api_target(url, "rain_mm"), api_target(url, "snow_mm"),
+                         api_target(url, "precipitation_probability")], g(12, y, 12, 9), "suffix: mm",
+        description="Balken (gestapelt): Regen und Schnee (als Wasser) in mm je Stunde. Gestrichelt "
+                    "(rechte Achse): Niederschlagswahrscheinlichkeit der Stunde.",
+        overrides=[by_ref("A", "Regen", BLUE, extra=bars + [stacked]),
+                   by_ref("B", "Schnee", VIOLET, extra=bars + [stacked]),
+                   by_ref("C", "Wahrscheinlichkeit", GRAY, dashed=True, extra=[
+                       {"id": "unit", "value": "percent"}, {"id": "min", "value": 0},
+                       {"id": "max", "value": 100}, right,
+                       {"id": "custom.hideFrom", "value": {"legend": True, "tooltip": False, "viz": False}}])],
+        min_=0)
+    precipitation["options"]["legend"]["calcs"] = ["sum", "max"]
+    t, o = per_hp("outdoor_temperature_celsius")
+    for target_ in t:
+        target_["expr"] += f" - on() group_left {per_appliance(f'{M}forecast_temperature_celsius{{}}')}"
+    difference = timeseries(
+        "Außentemperatur: gemessen − Vorhersage", t, g(0, y + 9, 24, 8), "celsius", o,
+        description="Außenfühler minus Vorhersage für denselben Zeitpunkt, letzte 7 Tage. Positiv = Fühler "
+                    "wärmer, z. B. durch Sonne auf dem Fühler oder Wärme von der Hauswand; eine dauerhafte "
+                    "Abweichung ist ein Fühler-Offset oder das Mikroklima. Aufgezeichnet seit Einführung der "
+                    "Metrik.")
+    difference["interval"] = "5m"
+    difference["timeFrom"] = "7d"  # the past only: there is nothing to compare in the future
+    difference["fieldConfig"]["defaults"]["custom"]["thresholdsStyle"] = {"mode": "line"}
+    difference["fieldConfig"]["defaults"]["thresholds"] = {
+        "mode": "absolute", "steps": [{"color": GRAY, "value": None}, {"color": GRAY, "value": 0}]}
+    return [temperature, precipitation, difference]
 
 
 def build_forecast() -> dict:
@@ -538,10 +585,11 @@ def build_forecast() -> dict:
                    by_ref("F", "Ladezustand Prognose", VIOLET, dashed=True, extra=percent)])
     forecast["options"]["legend"]["calcs"] = ["max"]
     panels.append(forecast)
+    panels += weather_panels(16)
     return {
         "uid": "pv-forecast",
-        "title": "Haus · PV-Prognose",
-        "description": "PV-Prognose (Open-Meteo) für heute und morgen mit Überschussfenstern.",
+        "title": "Haus · Prognose",
+        "description": "PV- und Wetterprognose (Open-Meteo) für heute und morgen mit Überschussfenstern.",
         "tags": ["housevitals", "energie", "prognose"],
         "timezone": "browser",
         "weekStart": "monday",
@@ -564,8 +612,7 @@ def build_forecast() -> dict:
 # (titles, descriptions, legends, state texts). Queries are never touched. A display
 # text missing from a table is an error, so no half-translated dashboard is written.
 KEEP = {"PV", "L1", "L2", "L3", "String 1", "String 2", "String 3", "Prometheus", "REST-API",
-        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}", "{{array}}",
-        "pv_w", "load_w", "export_w", "soc"}  # + REST API field names
+        "online", "offline", "heatpump1", "heatpump2", "inverter", "{{appliance}}", "{{array}}", "Open-Meteo"}
 TRANSLATIONS = {
     "en": {
         "Haus · Energie & Wärmepumpen": "Home · Energy & heat pumps",
@@ -625,11 +672,30 @@ TRANSLATIONS = {
         "PV-Prognose heute": "PV forecast today", "PV-Prognose morgen": "PV forecast tomorrow",
         "heute": "today", "morgen": "tomorrow",
         "PV-Prognose heute & morgen": "PV forecast today & tomorrow",
-        "Haus · PV-Prognose": "Home · PV forecast",
-        "PV-Prognose (Open-Meteo) für heute und morgen mit Überschussfenstern.":
-            "PV forecast (Open-Meteo) for today and tomorrow with surplus windows.", "PV gemessen": "PV measured",
+        "Haus · Prognose": "Home · Forecast", "Prognose": "Forecast",
+        "PV- und Wetterprognose (Open-Meteo) für heute und morgen mit Überschussfenstern.":
+            "PV and weather forecast (Open-Meteo) for today and tomorrow with surplus windows.",
+        "Gestrichelt: Lufttemperatur laut Wettervorhersage (Open-Meteo, 2 m).":
+            "Dashed: air temperature from the weather forecast (Open-Meteo, 2 m).",
+        "Durchgezogen: Außenfühler der Wärmepumpen, gestrichelt: Vorhersage (Open-Meteo, "
+        "Lufttemperatur in 2 m).":
+            "Solid: the heat pumps' outdoor sensors, dashed: forecast (Open-Meteo, air temperature at 2 m).",
+        "Niederschlag": "Precipitation", "Regen": "rain", "Schnee": "snow",
+        "Wahrscheinlichkeit": "probability",
+        "Balken (gestapelt): Regen und Schnee (als Wasser) in mm je Stunde. Gestrichelt "
+        "(rechte Achse): Niederschlagswahrscheinlichkeit der Stunde.":
+            "Bars (stacked): rain and snow (as water) in mm per hour. Dashed (right axis): "
+            "precipitation probability of the hour.",
+        "Außentemperatur: gemessen − Vorhersage": "Outdoor temperature: measured − forecast",
+        "Außenfühler minus Vorhersage für denselben Zeitpunkt, letzte 7 Tage. Positiv = Fühler "
+        "wärmer, z. B. durch Sonne auf dem Fühler oder Wärme von der Hauswand; eine dauerhafte "
+        "Abweichung ist ein Fühler-Offset oder das Mikroklima. Aufgezeichnet seit Einführung der "
+        "Metrik.":
+            "Outdoor sensor minus forecast for the same time, last 7 days. Positive = sensor warmer, "
+            "e.g. sun on the sensor or heat from the house wall; a lasting difference is a sensor "
+            "offset or the microclimate. Recorded since the metric was introduced.", "PV gemessen": "PV measured",
         "Verbrauch erwartet": "expected load", "Überschuss": "surplus",
-        "Ladezustand Prognose": "state of charge forecast", "Zeit": "time",
+        "Ladezustand Prognose": "state of charge forecast",
         "Gemessene und prognostizierte PV-Leistung von heute und morgen, erwarteter "
         "Hausverbrauch (Profil der letzten Tage) und Batterie-Ladezustand (rechte Achse). "
         "Grüne Fläche: erwartete Einspeisung, solange die Batterie voll ist oder an "
@@ -697,6 +763,8 @@ def localize(node, lang: str):
         if key in ("title", "description", "legendFormat", "text") and isinstance(value, str) \
                 and value and value != "__auto":
             out[key] = _translate_text(value, lang)
+        elif key == "columns":  # REST API field names (series are named by displayName)
+            out[key] = value
         elif key == "value" and node.get("id") == "displayName":
             out[key] = _translate_text(value, lang)
         elif key == "matcher" and value.get("id") == "byName":
