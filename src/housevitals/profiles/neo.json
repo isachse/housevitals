@@ -891,6 +891,77 @@
    }
   },
   {
+   "key": "mkr1_room_setpoint",
+   "address": 108,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 1 room temperature setpoint",
+   "label_de": "MKR1 Raumsolltemperatur",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr1_flow_setpoint",
+   "address": 109,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 1 flow setpoint (used while mkr1_flow_setpoint_active)",
+   "label_de": "MKR1 VL Solltemperatur (wirkt mit MKR1 VL Soll aktiv)",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr1_flow_setpoint_active",
+   "address": 110,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Mixing circuit 1 flow setpoint override active",
+   "label_de": "MKR1 VL Soll aktiv",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "mkr1_cooling_return_min",
+   "address": 111,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 1 cooling: minimum return temperature",
+   "label_de": "MKR1 Kühlung RLT min.",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
    "key": "mkr2_operating_mode",
    "address": 112,
    "register_type": "holding",
@@ -912,6 +983,305 @@
     "6": "holiday",
     "7": "party"
    }
+  },
+  {
+   "key": "mkr2_room_setpoint",
+   "address": 113,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 2 room temperature setpoint",
+   "label_de": "MKR2 Raumsolltemperatur",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr2_flow_setpoint",
+   "address": 114,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 2 flow setpoint (used while mkr2_flow_setpoint_active)",
+   "label_de": "MKR2 VL Solltemperatur (wirkt mit MKR2 VL Soll aktiv)",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "mkr2_flow_setpoint_active",
+   "address": 115,
+   "register_type": "holding",
+   "data_type": "uint16",
+   "count": 1,
+   "scale": 1,
+   "label": "Mixing circuit 2 flow setpoint override active",
+   "label_de": "MKR2 VL Soll aktiv",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "enum": {
+    "0": "off",
+    "*": "on"
+   }
+  },
+  {
+   "key": "mkr2_cooling_return_min",
+   "address": 116,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "Mixing circuit 2 cooling: minimum return temperature",
+   "label_de": "MKR2 Kühlung RLT min.",
+   "category": "settings",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ]
+  },
+  {
+   "key": "hkr_curve_reference",
+   "address": 135,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "HKR heating curve: outdoor reference point",
+   "label_de": "HKR Heizkurve: Außentemperatur-Stützpunkt",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "hkr_curve_18",
+   "address": 136,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "HKR heating curve: target at 18 °C outdoor",
+   "label_de": "HKR Heizkurve: Soll bei 18 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "hkr_curve_0",
+   "address": 137,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "HKR heating curve: target at 0 °C outdoor",
+   "label_de": "HKR Heizkurve: Soll bei 0 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "hkr_curve_minus15",
+   "address": 138,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "HKR heating curve: target at -15 °C outdoor",
+   "label_de": "HKR Heizkurve: Soll bei -15 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr1_curve_reference",
+   "address": 139,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR1 heating curve: outdoor reference point",
+   "label_de": "MKR1 Heizkurve: Außentemperatur-Stützpunkt",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr1_curve_18",
+   "address": 140,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR1 heating curve: target at 18 °C outdoor",
+   "label_de": "MKR1 Heizkurve: Soll bei 18 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr1_curve_0",
+   "address": 141,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR1 heating curve: target at 0 °C outdoor",
+   "label_de": "MKR1 Heizkurve: Soll bei 0 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr1_curve_minus15",
+   "address": 142,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR1 heating curve: target at -15 °C outdoor",
+   "label_de": "MKR1 Heizkurve: Soll bei -15 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr2_curve_reference",
+   "address": 143,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR2 heating curve: outdoor reference point",
+   "label_de": "MKR2 Heizkurve: Außentemperatur-Stützpunkt",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr2_curve_18",
+   "address": 144,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR2 heating curve: target at 18 °C outdoor",
+   "label_de": "MKR2 Heizkurve: Soll bei 18 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr2_curve_0",
+   "address": 145,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR2 heating curve: target at 0 °C outdoor",
+   "label_de": "MKR2 Heizkurve: Soll bei 0 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
+  },
+  {
+   "key": "mkr2_curve_minus15",
+   "address": 146,
+   "register_type": "holding",
+   "data_type": "int16",
+   "count": 1,
+   "scale": 0.1,
+   "unit": "°C",
+   "label": "MKR2 heating curve: target at -15 °C outdoor",
+   "label_de": "MKR2 Heizkurve: Soll bei -15 °C außen",
+   "category": "heating_curve",
+   "summary": false,
+   "writable": false,
+   "invalid_raw": [
+    -500,
+    -1000
+   ],
+   "note": "undocumented in the NEO-RKM manual; identified by matching the panel heating curve"
   }
  ]
 }
