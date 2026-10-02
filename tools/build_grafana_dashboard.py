@@ -85,6 +85,11 @@ def daily_energy(counter: str, appliance: str) -> str:
 # Measured on this installation (blocks of live data); used to project the space for 10 years.
 BYTES_PER_SAMPLE = 2.2
 TEN_YEARS_S = 3650 * 86400
+# Share of the size limit 10 years of data need at the current intake (dashboard tile and
+# alert). sum(): the samples counter is split by a `type` label (float / histogram).
+SPACE_FOR_10_YEARS = (f"sum(rate(prometheus_tsdb_head_samples_appended_total[1h])) * 86400 * 3650 * "
+                      f"{BYTES_PER_SAMPLE} / sum(prometheus_tsdb_retention_limit_bytes)")
+ALERTS = OUT.parent / "provisioning" / "alerting" / "housevitals-retention.json"
 
 RKM_NOTE = ("Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), "
             "importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Jede Stufe = Zuwachs der "
@@ -507,9 +512,7 @@ def build() -> dict:
     panels.append(row("Datenhaltung · Prometheus", y)); y += 1
     used = ("prometheus_tsdb_storage_blocks_bytes + prometheus_tsdb_wal_storage_size_bytes"
             " + prometheus_tsdb_head_chunks_storage_size_bytes")
-    # sum(): the counter is split by a `type` label (float / histogram)
-    per_10y = (f"sum(rate(prometheus_tsdb_head_samples_appended_total[1h])) * 86400 * 3650 * {BYTES_PER_SAMPLE}"
-               " / sum(prometheus_tsdb_retention_limit_bytes)")
+    per_10y = SPACE_FOR_10_YEARS
     level = {"mode": "absolute", "steps": [{"color": GOOD, "value": None}, {"color": WARNING, "value": 0.8},
                                            {"color": CRITICAL, "value": 1}]}
     panels += [
@@ -942,6 +945,8 @@ def _uid(uid: str, lang: str) -> str:
 
 def dashboards() -> dict[str, dict]:
     """{uid: dashboard}; German is the source, the others are translated."""
+    global _ids
+    _ids = iter(range(1, 1000))  # same panel ids on every build (alert rules link to them)
     out = {}
     for base in (build(), build_forecast()):
         for lang, dash in _languages(base).items():
@@ -965,9 +970,66 @@ def _languages(base: dict) -> dict[str, dict]:
     return result
 
 
+def _rule(uid: str, title: str, expr: str, op: str, threshold: float, hold: str, summary: str,
+          description: str, severity: str, panel_id: int) -> dict:
+    """A Grafana-managed alert rule: Prometheus query A, threshold C, linked to its dashboard
+    tile (Grafana needs both __dashboardUid__ and __panelId__, or refuses to start)."""
+    return {
+        "uid": uid, "title": title, "condition": "C", "for": hold,
+        "noDataState": "OK", "execErrState": "Error",
+        "labels": {"severity": severity, "service": "housevitals"},
+        "annotations": {"summary": summary, "description": description,
+                        "__dashboardUid__": "home-energy", "__panelId__": str(panel_id)},
+        "data": [
+            {"refId": "A", "relativeTimeRange": {"from": 3600, "to": 0}, "datasourceUid": DS["uid"],
+             "model": {"refId": "A", "expr": expr, "instant": True, "range": False}},
+            {"refId": "C", "datasourceUid": "__expr__",
+             "model": {"refId": "C", "type": "threshold", "expression": "A",
+                       "conditions": [{"evaluator": {"type": op, "params": [threshold]}}]}},
+        ],
+    }
+
+
+def _panel_id(dashboard: dict, title: str) -> int:
+    for p in dashboard["panels"]:
+        for q in [p, *p.get("panels", [])]:
+            if q.get("title") == title:
+                return q["id"]
+    raise KeyError(f"no panel {title!r}")
+
+
+def alert_rules(dashboard: dict) -> dict:
+    """Grafana alert rules that make sure no data is deleted before it is 10 years old;
+    `dashboard` is the German main dashboard (for the links to its tiles)."""
+    space, deleted, limit = (_panel_id(dashboard, t) for t in
+                             ("Platzbedarf für 10 Jahre", "Wegen Größe gelöscht", "Zeitlimit"))
+    return {"apiVersion": 1, "groups": [{
+        "orgId": 1, "name": "Datenhaltung", "folder": "Haus", "interval": "5m",
+        "rules": [
+            _rule("hv-retention-space", "Prometheus: Platz reicht nicht für 10 Jahre", SPACE_FOR_10_YEARS,
+                  "gt", 0.8, "6h", "10 Jahre Daten bräuchten {{ humanizePercentage $values.A.Value }} des Größenlimits.",
+                  "Bei der aktuellen Aufnahme wird das Größenlimit von Prometheus voll, bevor die Daten "
+                  "10 Jahre alt sind; dann löscht Prometheus die ältesten. Abhilfe: "
+                  "--storage.tsdb.retention.size erhöhen oder die Aufnahme verringern (README, "
+                  "\"Running on macOS\").", "warning", space),
+            _rule("hv-retention-size-deleted", "Prometheus: Daten wegen Größenlimit gelöscht",
+                  "sum(prometheus_tsdb_size_retentions_total)", "gt", 0, "0s",
+                  "Prometheus hat {{ $values.A.Value }} Block/Blöcke wegen des Größenlimits gelöscht.",
+                  "Daten wurden gelöscht, bevor sie 10 Jahre alt waren. Größenlimit erhöhen.", "critical", deleted),
+            _rule("hv-retention-time", "Prometheus: Zeitlimit unter 10 Jahren",
+                  "min(prometheus_tsdb_retention_limit_seconds)", "lt", TEN_YEARS_S, "0s",
+                  "Prometheus behält Daten nur noch {{ humanizeDuration $values.A.Value }}.",
+                  "--storage.tsdb.retention.time ist kürzer als 10 Jahre.", "critical", limit),
+        ],
+    }]}
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
-    for uid, dash in dashboards().items():
+    all_dashboards = dashboards()
+    for uid, dash in all_dashboards.items():
         path = OUT / f"{uid}.json"
         path.write_text(json.dumps(dash, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"wrote {path}")
+    ALERTS.write_text(json.dumps(alert_rules(all_dashboards["home-energy"]), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"wrote {ALERTS}")
