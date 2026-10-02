@@ -88,12 +88,17 @@ RKM_NOTE = ("Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbu
 DHW_COLOR = {"WP1": VIOLET, "WP2": MAGENTA}
 
 
-def weekly_increase(counter: str, appliance: str) -> str:
-    """Increase of an imported NEO-RKM counter in the week starting at the bar (hourly
-    samples: end minus start, not increase())."""
-    sel = f'{M}rkm_{counter}_total{{appliance="{appliance}"}}'
+def weekly_counter(sel: str) -> str:
+    """Increase of a counter in the week starting at the bar: end minus start over all
+    its series (imported and live), not increase(), which sparse or imported samples and
+    the seam between them would distort."""
     return (f"max by (appliance) (max_over_time({sel}[7d] offset -7d))"
             f" - max by (appliance) (max_over_time({sel}[7d]))")
+
+
+def weekly_increase(counter: str, appliance: str) -> str:
+    """Weekly increase of an imported NEO-RKM counter (hourly samples)."""
+    return weekly_counter(f'{M}rkm_{counter}_total{{appliance="{appliance}"}}')
 
 
 def target(expr: str, legend: str = "", instant: bool = False, interval: str | None = None) -> dict:
@@ -441,7 +446,36 @@ def build() -> dict:
     y += 8
 
     # ---- Langzeit: Wärmepumpen aus dem NEO-RKM-Log (tools/import_rkm_log.py)
-    panels.append(row("Langzeit · Wärmepumpen (RKM-Log)", y)); y += 1
+    panels.append(row("Langzeit · Energie, Wärmepumpen, Wetter", y)); y += 1
+    # PV history imported from iSolarCloud (tools/import_sungrow_report.py) continues the
+    # live counters; weather from the Open-Meteo archive (tools/import_weather_history.py).
+    t = [target(weekly_counter(f"{M}{metric}_kWh_total{{{INV}}}"), name, interval="7d")
+         for metric, name in (("pv_energy", "PV-Erzeugung"), ("export_energy", "Einspeisung"),
+                              ("import_energy", "Netzbezug"))]
+    energy = timeseries(
+        "Energie pro Woche", t, g(0, y, 12, 9), "suffix: kWh", decimals=0, interval="7d",
+        description="PV-Erzeugung, Einspeisung und Netzbezug je Woche, aus den Gesamtzählern des "
+                    "Wechselrichters; vor Beginn der Aufzeichnung aus dem iSolarCloud-Export importiert. "
+                    "Jede Stufe = Woche ab der Stufe.",
+        overrides=[override("PV-Erzeugung", YELLOW), override("Einspeisung", VIOLET),
+                   override("Netzbezug", ORANGE)])
+    weather = f"{M}weather_temperature_celsius{{}}"
+    t = [target(f"avg_over_time({weather}[7d] offset -7d)", "Wochenmittel", interval="7d"),
+         target(f"min_over_time({weather}[7d] offset -7d)", "Minimum", interval="7d"),
+         target(f"max_over_time({weather}[7d] offset -7d)", "Maximum", interval="7d")]
+    temperature = timeseries(
+        "Außentemperatur pro Woche", t, g(12, y, 12, 9), "celsius", decimals=1, interval="7d",
+        description="Lufttemperatur am Standort aus dem Open-Meteo-Archiv (stündlich): Mittel, Minimum "
+                    "und Maximum je Woche ab dem Punkt.",
+        overrides=[override("Wochenmittel", ORANGE), override("Minimum", BLUE, dashed=True),
+                   override("Maximum", MAGENTA, dashed=True)])
+    # a value per week, held for the week (lines, so the three series do not hide each other)
+    energy["fieldConfig"]["defaults"]["custom"].update(lineInterpolation="stepAfter", fillOpacity=10)
+    energy["options"]["legend"]["calcs"] = ["sum"]
+    for panel in (energy, temperature):
+        panel["timeFrom"] = "3y"
+    panels += [energy, temperature]
+    y += 9
     t = [target(weekly_increase("compressor_starts", a), s, interval="7d") for a, s, _ in HEAT_PUMPS]
     starts = timeseries(
         "Verdichterstarts pro Woche", t, g(0, y, 12, 9), "none", bars=True, decimals=0, interval="7d",
@@ -689,7 +723,18 @@ TRANSLATIONS = {
         "Wärmepumpen · Strom pro Tag": "Heat pumps · electricity per day",
         "Vor- und Rücklauf": "Flow and return", "Arbeitszahl pro Tag": "Performance factor per day",
         "Wärme pro Tag": "Heat per day",
-        "Langzeit · Wärmepumpen (RKM-Log)": "Long term · heat pumps (RKM log)",
+        "Langzeit · Energie, Wärmepumpen, Wetter": "Long term · energy, heat pumps, weather",
+        "Energie pro Woche": "Energy per week", "Außentemperatur pro Woche": "Outdoor temperature per week",
+        "Wochenmittel": "weekly mean", "Maximum": "maximum",
+        "PV-Erzeugung, Einspeisung und Netzbezug je Woche, aus den Gesamtzählern des "
+        "Wechselrichters; vor Beginn der Aufzeichnung aus dem iSolarCloud-Export importiert. "
+        "Jede Stufe = Woche ab der Stufe.":
+            "PV generation, feed-in and grid import per week from the inverter's lifetime counters; "
+            "before recording started imported from the iSolarCloud export. Each step = the week from it.",
+        "Lufttemperatur am Standort aus dem Open-Meteo-Archiv (stündlich): Mittel, Minimum "
+        "und Maximum je Woche ab dem Punkt.":
+            "Air temperature at the location from the Open-Meteo archive (hourly): mean, minimum and "
+            "maximum per week from the point.",
         "Verdichterstarts pro Woche": "Compressor starts per week", "Heizung": "Heating", "Laufzeit pro Woche": "Running hours per week",
         RKM_NOTE: "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported "
                   "with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week "

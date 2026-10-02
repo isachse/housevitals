@@ -96,6 +96,8 @@ def test_dashboard_queries_combine_series():
         for panel in panels:
             for t in panel.get("targets", []):
                 for m in selector.finditer(t.get("expr", "")):  # REST API (Infinity) targets have none
+                    if t["expr"][m.start():].startswith("housevitals_weather_"):
+                        continue  # imported weather: one series, no appliance
                     before = t["expr"][:m.start()]
                     assert before.endswith(("max by (appliance) (", "sum by (appliance) (increase(",
                                             "max by (array, day) (",

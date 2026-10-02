@@ -3588,7 +3588,7 @@
     },
     {
       "type": "row",
-      "title": "Langzeit · Wärmepumpen (RKM-Log)",
+      "title": "Langzeit · Energie, Wärmepumpen, Wetter",
       "collapsed": false,
       "id": 38,
       "gridPos": {
@@ -3601,11 +3601,326 @@
     },
     {
       "type": "timeseries",
+      "title": "Energie pro Woche",
+      "description": "PV-Erzeugung, Einspeisung und Netzbezug je Woche, aus den Gesamtzählern des Wechselrichters; vor Beginn der Aufzeichnung aus dem iSolarCloud-Export importiert. Jede Stufe = Woche ab der Stufe.",
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kWh",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": 60000,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PV-Erzeugung"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Einspeisung"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9085e9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Netzbezug"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "id": 39,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_pv_energy_kWh_total{appliance=\"inverter\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_pv_energy_kWh_total{appliance=\"inverter\"}[7d]))",
+          "legendFormat": "PV-Erzeugung",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_export_energy_kWh_total{appliance=\"inverter\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_export_energy_kWh_total{appliance=\"inverter\"}[7d]))",
+          "legendFormat": "Einspeisung",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_import_energy_kWh_total{appliance=\"inverter\"}[7d]))",
+          "legendFormat": "Netzbezug",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "C"
+        }
+      ],
+      "timeFrom": "3y"
+    },
+    {
+      "type": "timeseries",
+      "title": "Außentemperatur pro Woche",
+      "description": "Lufttemperatur am Standort aus dem Open-Meteo-Archiv (stündlich): Mittel, Minimum und Maximum je Woche ab dem Punkt.",
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "smooth",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": 60000,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Wochenmittel"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Minimum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    6
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Maximum"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    6
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "id": 40,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg_over_time(housevitals_weather_temperature_celsius{}[7d] offset -7d)",
+          "legendFormat": "Wochenmittel",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min_over_time(housevitals_weather_temperature_celsius{}[7d] offset -7d)",
+          "legendFormat": "Minimum",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max_over_time(housevitals_weather_temperature_celsius{}[7d] offset -7d)",
+          "legendFormat": "Maximum",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "C"
+        }
+      ],
+      "timeFrom": "3y"
+    },
+    {
+      "type": "timeseries",
       "title": "Verdichterstarts pro Woche",
       "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 81,
         "w": 12,
         "h": 9
       },
@@ -3688,7 +4003,7 @@
       },
       "interval": "7d",
       "timeFrom": "3y",
-      "id": 39,
+      "id": 41,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3726,7 +4041,7 @@
       "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
       "gridPos": {
         "x": 12,
-        "y": 72,
+        "y": 81,
         "w": 12,
         "h": 9
       },
@@ -3839,7 +4154,7 @@
       },
       "interval": "7d",
       "timeFrom": "3y",
-      "id": 40,
+      "id": 42,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3899,12 +4214,12 @@
       "type": "row",
       "title": "Details · PV-Anlage",
       "collapsed": true,
-      "id": 45,
+      "id": 47,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 90
       },
       "panels": [
         {
@@ -3913,7 +4228,7 @@
           "description": "MPPT-Spannung × Strom.",
           "gridPos": {
             "x": 0,
-            "y": 82,
+            "y": 91,
             "w": 12,
             "h": 8
           },
@@ -4008,7 +4323,7 @@
               "sort": "none"
             }
           },
-          "id": 41,
+          "id": 43,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4055,272 +4370,13 @@
           "description": "Positiv = Bezug, negativ = Einspeisung.",
           "gridPos": {
             "x": 12,
-            "y": 82,
+            "y": 91,
             "w": 12,
             "h": 8
           },
           "fieldConfig": {
             "defaults": {
               "unit": "watt",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "lineInterpolation": "smooth",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "showPoints": "never",
-                "pointSize": 8,
-                "spanNulls": 60000,
-                "barAlignment": -1,
-                "barWidthFactor": 0.8,
-                "axisBorderShow": false,
-                "axisPlacement": "auto",
-                "stacking": {
-                  "mode": "none",
-                  "group": "A"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "color": {
-                "mode": "palette-classic"
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "L1"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#3987e5"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "L2"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#d95926"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "L3"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#199e70"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true,
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "id": 42,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "max by (appliance) (housevitals_grid_power_a_watts{appliance=\"inverter\"})",
-              "legendFormat": "L1",
-              "range": true,
-              "instant": false,
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "max by (appliance) (housevitals_grid_power_b_watts{appliance=\"inverter\"})",
-              "legendFormat": "L2",
-              "range": true,
-              "instant": false,
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "max by (appliance) (housevitals_grid_power_c_watts{appliance=\"inverter\"})",
-              "legendFormat": "L3",
-              "range": true,
-              "instant": false,
-              "refId": "C"
-            }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Temperaturen Wechselrichter & Batterie",
-          "description": "",
-          "gridPos": {
-            "x": 0,
-            "y": 90,
-            "w": 12,
-            "h": 8
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "celsius",
-              "custom": {
-                "drawStyle": "line",
-                "lineWidth": 2,
-                "lineInterpolation": "smooth",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "showPoints": "never",
-                "pointSize": 8,
-                "spanNulls": 60000,
-                "barAlignment": -1,
-                "barWidthFactor": 0.8,
-                "axisBorderShow": false,
-                "axisPlacement": "auto",
-                "stacking": {
-                  "mode": "none",
-                  "group": "A"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "color": {
-                "mode": "palette-classic"
-              },
-              "decimals": 1
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Wechselrichter"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#3987e5"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Batterie"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "fixed",
-                      "fixedColor": "#199e70"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "options": {
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true,
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "id": 43,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "max by (appliance) (housevitals_inverter_temperature_celsius{appliance=\"inverter\"})",
-              "legendFormat": "Wechselrichter",
-              "range": true,
-              "instant": false,
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "max by (appliance) (housevitals_battery_temperature_celsius{appliance=\"inverter\"})",
-              "legendFormat": "Batterie",
-              "range": true,
-              "instant": false,
-              "refId": "B"
-            }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Netzspannung je Phase",
-          "description": "",
-          "gridPos": {
-            "x": 12,
-            "y": 90,
-            "w": 12,
-            "h": 8
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "volt",
               "custom": {
                 "drawStyle": "line",
                 "lineWidth": 2,
@@ -4420,6 +4476,265 @@
                 "type": "prometheus",
                 "uid": "prometheus"
               },
+              "expr": "max by (appliance) (housevitals_grid_power_a_watts{appliance=\"inverter\"})",
+              "legendFormat": "L1",
+              "range": true,
+              "instant": false,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (appliance) (housevitals_grid_power_b_watts{appliance=\"inverter\"})",
+              "legendFormat": "L2",
+              "range": true,
+              "instant": false,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (appliance) (housevitals_grid_power_c_watts{appliance=\"inverter\"})",
+              "legendFormat": "L3",
+              "range": true,
+              "instant": false,
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Temperaturen Wechselrichter & Batterie",
+          "description": "",
+          "gridPos": {
+            "x": 0,
+            "y": 99,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "lineInterpolation": "smooth",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "showPoints": "never",
+                "pointSize": 8,
+                "spanNulls": 60000,
+                "barAlignment": -1,
+                "barWidthFactor": 0.8,
+                "axisBorderShow": false,
+                "axisPlacement": "auto",
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 1
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Wechselrichter"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#3987e5"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Batterie"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#199e70"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true,
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "id": 45,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (appliance) (housevitals_inverter_temperature_celsius{appliance=\"inverter\"})",
+              "legendFormat": "Wechselrichter",
+              "range": true,
+              "instant": false,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "max by (appliance) (housevitals_battery_temperature_celsius{appliance=\"inverter\"})",
+              "legendFormat": "Batterie",
+              "range": true,
+              "instant": false,
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Netzspannung je Phase",
+          "description": "",
+          "gridPos": {
+            "x": 12,
+            "y": 99,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "volt",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 2,
+                "lineInterpolation": "smooth",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "showPoints": "never",
+                "pointSize": 8,
+                "spanNulls": 60000,
+                "barAlignment": -1,
+                "barWidthFactor": 0.8,
+                "axisBorderShow": false,
+                "axisPlacement": "auto",
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "L1"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#3987e5"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "L2"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#d95926"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "L3"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#199e70"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true,
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "id": 46,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
               "expr": "max by (appliance) (housevitals_phase_a_voltage_volts{appliance=\"inverter\"})",
               "legendFormat": "L1",
               "range": true,
@@ -4456,12 +4771,12 @@
       "type": "row",
       "title": "Details · Wärmepumpen",
       "collapsed": true,
-      "id": 50,
+      "id": 52,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 82
+        "y": 91
       },
       "panels": [
         {
@@ -4470,7 +4785,7 @@
           "description": "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.",
           "gridPos": {
             "x": 0,
-            "y": 83,
+            "y": 92,
             "w": 12,
             "h": 8
           },
@@ -4600,7 +4915,7 @@
               "sort": "none"
             }
           },
-          "id": 46,
+          "id": 48,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4658,7 +4973,7 @@
           "description": "Durchgezogen = Kondensation, gestrichelt = Verdampfung.",
           "gridPos": {
             "x": 12,
-            "y": 83,
+            "y": 92,
             "w": 12,
             "h": 8
           },
@@ -4789,7 +5104,7 @@
               "sort": "none"
             }
           },
-          "id": 47,
+          "id": 49,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4847,7 +5162,7 @@
           "description": "Durchgezogen = Wärmequelle (Eintritt), gestrichelt = Pufferspeicher.",
           "gridPos": {
             "x": 0,
-            "y": 91,
+            "y": 100,
             "w": 12,
             "h": 8
           },
@@ -4978,7 +5293,7 @@
               "sort": "none"
             }
           },
-          "id": 48,
+          "id": 50,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5036,7 +5351,7 @@
           "description": "Liter pro Minute.",
           "gridPos": {
             "x": 12,
-            "y": 91,
+            "y": 100,
             "w": 12,
             "h": 8
           },
@@ -5117,7 +5432,7 @@
               "sort": "none"
             }
           },
-          "id": 49,
+          "id": 51,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5153,12 +5468,12 @@
       "type": "row",
       "title": "Dienst · housevitals",
       "collapsed": true,
-      "id": 53,
+      "id": 55,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 83
+        "y": 92
       },
       "panels": [
         {
@@ -5167,7 +5482,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 84,
+            "y": 93,
             "w": 12,
             "h": 6
           },
@@ -5216,7 +5531,7 @@
               "sort": "none"
             }
           },
-          "id": 51,
+          "id": 53,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5263,7 +5578,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 84,
+            "y": 93,
             "w": 12,
             "h": 6
           },
@@ -5358,7 +5673,7 @@
               "sort": "none"
             }
           },
-          "id": 52,
+          "id": 54,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

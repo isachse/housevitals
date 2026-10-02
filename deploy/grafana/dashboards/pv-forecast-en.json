@@ -96,7 +96,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 54,
+      "id": 56,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -164,7 +164,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 55,
+      "id": 57,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -232,7 +232,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 56,
+      "id": 58,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -318,7 +318,7 @@
         "wideLayout": true,
         "showPercentChange": false
       },
-      "id": 57,
+      "id": 59,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -568,7 +568,7 @@
           "sort": "none"
         }
       },
-      "id": 58,
+      "id": 60,
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -826,7 +826,7 @@
           "sort": "none"
         }
       },
-      "id": 59,
+      "id": 61,
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -1078,7 +1078,7 @@
           "sort": "none"
         }
       },
-      "id": 60,
+      "id": 62,
       "datasource": {
         "type": "yesoreyeram-infinity-datasource",
         "uid": "housevitals-api"
@@ -1270,7 +1270,7 @@
           "sort": "none"
         }
       },
-      "id": 61,
+      "id": 63,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
