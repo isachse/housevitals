@@ -169,6 +169,9 @@ class ServiceConfig:
     # accept a value and adjust it a few seconds later (the Brötje NEO limits the DHW
     # minimum to the maximum - 5 K after about 5 s); the first read-back misses that.
     override_verify_delay_s: float = 10.0
+    # End all overrides (restore the previous values) when the service stops, and on
+    # the next start after an unclean end, so no override outlives the service.
+    restore_overrides_on_stop: bool = True
     # Counters of derived data points (e.g. energy integrated from power) survive
     # restarts here. None: not kept (the service sets DEFAULT_DERIVED_STATE_FILE).
     derived_state_file: str | None = None

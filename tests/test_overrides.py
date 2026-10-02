@@ -1,6 +1,7 @@
 """Tests for the override path: allow-list, leases, restore, write budget, control API."""
 
 import asyncio
+import contextlib
 import json
 import time
 
@@ -453,4 +454,62 @@ async def test_check_of_one_register_does_not_block_others(neo_device, tmp_path)
     # its own check takes 1 s; waiting for the other register's check would add ~0.8 s
     assert time.monotonic() - started < 1.5
     await slow
+    await hub.stop()
+
+
+async def test_stopping_the_service_restores_every_override(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    await mgr.apply("hp", "return_setpoint_active", "on", OWNER, duration_s=3600)
+    await mgr.start()
+    await mgr.stop()  # what the service does on shutdown
+    assert mgr.leases == {}
+    assert await _device_value(hub) == 42
+    assert await _device_value(hub, "return_setpoint_active") == "off"
+    assert json.loads((tmp_path / "overrides.json").read_text())["leases"] == []
+    await hub.stop()
+
+
+async def test_leases_left_by_an_unclean_end_are_restored_at_start(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    # crash: no stop(); the next process finds the lease still running
+    hub2, mgr2 = _manager(neo_device, tmp_path)
+    await mgr2.start()
+    for _ in range(50):
+        await asyncio.sleep(0.05)
+        if not mgr2.leases:
+            break
+    assert mgr2.leases == {} and await _device_value(hub2) == 42
+    await mgr2.stop()
+    await hub.stop()
+    await hub2.stop()
+
+
+async def test_restore_on_stop_can_be_switched_off(neo_device, tmp_path):
+    hub = Hub(_config(neo_device, tmp_path / "overrides.json"))
+    mgr = OverrideManager(hub, tmp_path / "overrides.json", restore_on_stop=False)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    await mgr.start()
+    await mgr.stop()
+    assert ("hp", "dhw_setpoint_min") in mgr.leases and await _device_value(hub) == 50
+    mgr2 = OverrideManager(hub, tmp_path / "overrides.json", restore_on_stop=False)
+    await mgr2.start()  # kept across the restart
+    assert mgr2.leases[("hp", "dhw_setpoint_min")].until > time.time()
+    await mgr2.restore_all("test cleanup")
+    await mgr2.stop()
+    await hub.stop()
+
+
+async def test_stop_with_the_device_down_restores_at_the_next_start(tmp_path):
+    port, server, task = await _start_neo()
+    hub, mgr = _manager(port, tmp_path)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    server.close()  # device gone while the service stops
+    task.cancel()
+    with contextlib.suppress(BaseException):
+        await task
+    await mgr.stop()
+    state = json.loads((tmp_path / "overrides.json").read_text())["leases"]
+    assert state and state[0]["until"] <= time.time() + 1  # ended, restore pending
     await hub.stop()
