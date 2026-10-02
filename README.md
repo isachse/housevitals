@@ -41,12 +41,16 @@ limited time, restored afterwards. Without an allow-list it never writes.
                 │
                 ▼
  Cache: latest value per data point, with age and stale flag ──► REST API · MCP (live values)
+   + derived values computed by profile rules after each poll (e.g. energy from power)
                 │
                 ▼  OpenTelemetry SDK, OTLP push every 15 s
  Prometheus: time-series storage (10 years) ─────────────────► Grafana dashboards
                 │
                 ▼  PromQL
  History, energy balance, runtimes, PNG charts ──────────────► REST API · MCP
+
+ Open-Meteo (weather) ──► Forecast: PV, surplus windows, weather ──► REST API · MCP · charts · Grafana
+                          (calibrated against the recorded PV power)
 ```
 
 Each device-specific register (scaling, units, enum codes, invalid values) is
@@ -80,8 +84,10 @@ state, so signals can be related over time, for example:
 * heat delivered vs. electricity used (performance factor per day, month, year)
 * compressor operating modes, runtimes and starts vs. energy use
 
-Energy balances use the devices' lifetime counters and local calendar days, weeks,
-months and years. The time series serve monitoring, analysis, optimization, automation
+Energy balances use the devices' lifetime counters (or, for devices whose counters are
+not updated, counters the service integrates from the measured power; see
+[Derived data points](#derived-data-points)) and local calendar days, weeks, months and
+years. The time series serve monitoring, analysis, optimization, automation
 and reporting. They are device readings, not calibrated metering, and are not suited
 for billing.
 
@@ -232,11 +238,12 @@ appliances. It polls in the background, keeps the last values in a cache and ser
 every consumer from it:
 
 ```
-Modbus TCP ◄── poller (one serialised connection per appliance) ──► cache
+Modbus TCP ◄── poller (one serialised connection per appliance) ──► cache (+ derived values)
     ▲                                                                 ├─► OTLP metrics ──► Prometheus
     │                                                                 ├─► REST API  /api/v1/…  (OpenAPI: /docs)
     │                                                                 └─► MCP       /mcp       (Streamable HTTP)
     └── overrides (allow-list, leases, restore) ◄── control API  PUT/DELETE /api/v1/…/overrides/{key}  (bearer token)
+Open-Meteo ──► forecast (PV, surplus, weather) ──► REST API · MCP · charts
 ```
 
 - **Polling groups:** `fast` (overview values + `extra_keys`, default 15 s), `slow`
@@ -262,6 +269,7 @@ Modbus TCP ◄── poller (one serialised connection per appliance) ──► 
 | `instance_id` | `housevitals` | Prometheus `instance` label of all metrics; keep it fixed (see below) |
 | `control_token_file` | – | File with the bearer token for writing overrides (or env `HOUSEVITALS_CONTROL_TOKEN`); without a token the control API is read-only |
 | `override_state_file` | `~/.local/state/housevitals/overrides.json` | Active overrides and today's write counts, kept across restarts |
+| `override_verify_delay_s` | `10` | Seconds after a write before the value is checked a second time (devices that adjust a value shortly after accepting it) |
 | `derived_state_file` | `~/.local/state/housevitals/derived.json` | Counters of derived data points (e.g. energy integrated from power), kept across restarts |
 
 Per device: `extra_keys` (additionally polled and exported registers),
@@ -275,7 +283,7 @@ With `service.prometheus_url` set, three more MCP tools read the recorded histor
 | Tool | Returns | Default range |
 |------|---------|---------------|
 | `get_history` | min/max/avg/last (counters: increase) and a downsampled series per key, `max_points` ≤ 500 | last 24 h |
-| `get_energy` | kWh per local **day/week/month/year** from the lifetime counters, with house consumption, self-sufficiency (Autarkie), self-consumption rate and heat pump performance factor (JAZ), plus totals; ≤ 62 periods | 7 days / 8 weeks / 12 months |
+| `get_energy` | kWh per local **day/week/month/year** from the lifetime counters (or derived counters, see `energy_from_power`), with house consumption, self-sufficiency (Autarkie), self-consumption rate and heat pump performance factor (JAZ), plus totals; ≤ 62 periods | 7 days / 8 weeks / 12 months |
 | `get_runtime` | hours and share per state, starts, completed run lengths of an on/off or enum value (e.g. `compressor`, `compressor_demand`); ≤ 31 days | today |
 
 Times accept ISO dates/times in local time (`2026-09-01`, `2026-09-01T06:00`),
@@ -422,9 +430,11 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /healthz` | Liveness, reachability per appliance, active overrides |
 
 Labels and chart texts use `?lang=de|en`, else the `Accept-Language` header, else the
-configured `lang`. Errors return `{"detail": …}` with 400 (bad request), 404 (unknown
-appliance, register or chart), 502 (appliance answered with an error) or 503
-(appliance or Prometheus unreachable).
+configured `lang`. Errors return `{"detail": …, "code": …}` with a stable,
+machine-readable `code` (e.g. `unknown_appliance`, `forecast_unavailable`) and 400 (bad
+request), 404 (unknown appliance, register or chart), 502 (appliance answered with an
+error) or 503 (appliance, Prometheus or forecast unavailable, with `Retry-After`); the
+control API adds the codes listed under [Control API](#control-api-overrides).
 
 Interactive docs: <http://127.0.0.1:8080/docs>, schema: `/openapi.json`.
 
@@ -919,7 +929,7 @@ profiles (register labels) and a table in the dashboard generator.
 | `proxy.py` | stdio → HTTP bridge from `housevitals-mcp` to the running service |
 | `api.py` | REST API (FastAPI), incl. the control API |
 | `service.py` | Service entry point `housevitals`: wires everything into one HTTP app |
-| `context.py` | `Services`: hub, history, charts and overrides, created once per process |
+| `context.py` | `Services`: hub, history, charts, forecast and overrides, created once per process |
 | `prometheus.py` | Prometheus HTTP client: timeouts, circuit breaker, status |
 | `config.py`, `i18n.py`, `errors.py` | Configuration and CLI, languages, error types with HTTP status |
 
