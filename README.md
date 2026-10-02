@@ -708,6 +708,13 @@ Grafana picks up the new JSON within 30 seconds. Layout (English section names; 
 | Details (collapsed) | PV strings, grid per phase, temperatures, refrigerant circuit, heat source, buffer, service health |
 | Forecast (own dashboard) | today 00:00 to tomorrow 24:00: forecast today/tomorrow, generation today, state of charge; measured and forecast PV (dashed), expected load, surplus as a green area, state of charge measured and forecast (right axis); outdoor temperature of both heat pumps vs. Open-Meteo; rain and snow per hour (stacked bars) with the precipitation probability; outdoor sensor minus forecast over the last 7 days |
 
+Three alert rules ([deploy/grafana/provisioning/alerting/housevitals-retention.json](deploy/grafana/provisioning/alerting/housevitals-retention.json),
+generated with the dashboards) watch the retention: space needed for 10 years above
+80 % for 6 hours, any block deleted for size, and a time limit below 10 years. They are
+linked to their tiles, so a firing alert shows on the dashboard and under Alerting →
+Alert rules. Grafana sends notifications only once a contact point (e.g. email via
+SMTP, or a push service) is configured.
+
 "Now" tiles show the current value (only while the appliance answers), daily bars always the last 30 days; all other
 charts follow the selected time range. Each appliance and energy flow keeps one fixed
 color in every panel (WP1 blue, WP2 orange; PV yellow, house blue, battery teal,

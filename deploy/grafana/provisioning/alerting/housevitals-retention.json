@@ -1,0 +1,172 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "Datenhaltung",
+      "folder": "Haus",
+      "interval": "5m",
+      "rules": [
+        {
+          "uid": "hv-retention-space",
+          "title": "Prometheus: Platz reicht nicht für 10 Jahre",
+          "condition": "C",
+          "for": "6h",
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "labels": {
+            "severity": "warning",
+            "service": "housevitals"
+          },
+          "annotations": {
+            "summary": "10 Jahre Daten bräuchten {{ humanizePercentage $values.A.Value }} des Größenlimits.",
+            "description": "Bei der aktuellen Aufnahme wird das Größenlimit von Prometheus voll, bevor die Daten 10 Jahre alt sind; dann löscht Prometheus die ältesten. Abhilfe: --storage.tsdb.retention.size erhöhen oder die Aufnahme verringern (README, \"Running on macOS\").",
+            "__dashboardUid__": "home-energy",
+            "__panelId__": "46"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(rate(prometheus_tsdb_head_samples_appended_total[1h])) * 86400 * 3650 * 2.2 / sum(prometheus_tsdb_retention_limit_bytes)",
+                "instant": true,
+                "range": false
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.8
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "hv-retention-size-deleted",
+          "title": "Prometheus: Daten wegen Größenlimit gelöscht",
+          "condition": "C",
+          "for": "0s",
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "labels": {
+            "severity": "critical",
+            "service": "housevitals"
+          },
+          "annotations": {
+            "summary": "Prometheus hat {{ $values.A.Value }} Block/Blöcke wegen des Größenlimits gelöscht.",
+            "description": "Daten wurden gelöscht, bevor sie 10 Jahre alt waren. Größenlimit erhöhen.",
+            "__dashboardUid__": "home-energy",
+            "__panelId__": "49"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "sum(prometheus_tsdb_size_retentions_total)",
+                "instant": true,
+                "range": false
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "uid": "hv-retention-time",
+          "title": "Prometheus: Zeitlimit unter 10 Jahren",
+          "condition": "C",
+          "for": "0s",
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "labels": {
+            "severity": "critical",
+            "service": "housevitals"
+          },
+          "annotations": {
+            "summary": "Prometheus behält Daten nur noch {{ humanizeDuration $values.A.Value }}.",
+            "description": "--storage.tsdb.retention.time ist kürzer als 10 Jahre.",
+            "__dashboardUid__": "home-energy",
+            "__panelId__": "47"
+          },
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "prometheus",
+              "model": {
+                "refId": "A",
+                "expr": "min(prometheus_tsdb_retention_limit_seconds)",
+                "instant": true,
+                "range": false
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        315360000
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
