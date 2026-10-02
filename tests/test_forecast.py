@@ -1,5 +1,6 @@
 """PV forecast and surplus windows (Open-Meteo mocked, measurements stubbed)."""
 
+import asyncio
 import json
 import math
 from datetime import datetime, timedelta, timezone
@@ -208,13 +209,15 @@ async def test_mcp_and_rest():
     services = Services(server_config, service.hub, forecast=service)
     mcp = build_server(services)
     names = {t.name for t in await mcp.list_tools()}
-    assert {"get_pv_forecast", "get_surplus_windows"} <= names
+    assert {"get_pv_forecast", "get_surplus_windows", "get_weather_forecast"} <= names
     pv = json.loads((await mcp.call_tool("get_pv_forecast", {"day": "tomorrow"})).content[0].text)
     assert pv["days"]["2026-09-30"]["pv_kwh"] > 0
     bad = json.loads((await mcp.call_tool("get_pv_forecast", {"resolution": "5m"})).content[0].text)
     assert "resolution" in bad["error"]
     surplus = json.loads((await mcp.call_tool("get_surplus_windows", {})).content[0].text)
     assert surplus["windows"] and "intervals" not in surplus
+    weather = json.loads((await mcp.call_tool("get_weather_forecast", {"day": "today"})).content[0].text)
+    assert list(weather["days"]) == ["2026-09-29"] and weather["intervals"][0]["temperature_c"] == 15.0
 
     from housevitals.service import build_app
     app = build_app(server_config, services, metric_readers=[])
@@ -224,6 +227,70 @@ async def test_mcp_and_rest():
         assert (await c.get("/api/v1/forecast/pv?resolution=5m")).status_code == 422  # validated by FastAPI
         surplus = (await c.get("/api/v1/forecast/surplus?resolution=1h")).json()
         assert surplus["windows"] and surplus["intervals"]
+        weather = (await c.get("/api/v1/forecast/weather?resolution=15m")).json()
+        assert len(weather["intervals"]) == 2 * 96 and weather["intervals"][0]["ts"]
+
+
+def _rainy_answer():
+    """Clear sky, but temperature rising 0.1 K per quarter hour, and tomorrow 06:00–07:00 UTC
+    rain (0.5 mm per quarter hour), 07:00–07:15 snow."""
+    start = datetime(2026, 9, 26, 0, 0, tzinfo=timezone.utc).timestamp()
+    body = _clear_sky_weather(start, 5)
+    m = body["minutely_15"]
+    n = len(m["time"])
+    m["temperature_2m"] = [round(10 + 0.1 * i, 1) for i in range(n)]
+    m["precipitation"], m["rain"], m["snowfall"], m["weather_code"] = [0.0] * n, [0.0] * n, [0.0] * n, [0] * n
+    for i, t in enumerate(m["time"]):
+        if "2026-09-30T06:15" <= t <= "2026-09-30T07:00":
+            m["precipitation"][i] = m["rain"][i] = 0.5
+            m["weather_code"][i] = 63
+        elif t == "2026-09-30T07:15":
+            m["precipitation"][i], m["snowfall"][i], m["weather_code"][i] = 0.7, 1.0, 73
+    hours = [datetime.fromtimestamp(start + h * 3600, timezone.utc).strftime("%Y-%m-%dT%H:%M") for h in range(5 * 24)]
+    body["hourly"] = {"time": hours,
+                      "precipitation_probability": [80 if h.startswith("2026-09-30T07") else 5 for h in hours]}
+    return lambda request: httpx.Response(200, json=body)
+
+
+async def test_weather_forecast():
+    service = _service(_rainy_answer())
+    await service.refresh()
+    # now = 18:00 UTC; the points around it are 18:00 and 18:15 UTC
+    i = next(i for i, p in enumerate(service.state.weather) if p.end == NOW)
+    current = service.current_weather()
+    assert current["temperature"] == pytest.approx(service.state.weather[i].temperature)  # exactly on a point
+    assert current["precipitation"] == 0 and current["snowfall"] == 0
+    service.now = lambda: NOW + 450  # halfway: interpolated
+    assert service.current_weather()["temperature"] == pytest.approx(service.state.weather[i].temperature + 0.05)
+    service.now = lambda: NOW
+
+    hourly = await service.weather("tomorrow", "1h")
+    day = hourly["days"]["2026-09-30"]
+    assert day["precipitation_mm"] == pytest.approx(2.7) and day["snowfall_cm"] == 1.0
+    assert day["precipitation_probability_max"] == 80
+    assert day["temperature_max_c"] - day["temperature_min_c"] == pytest.approx(9.5)  # 96 points × 0.1 K
+    rows = {r["start"][11:16]: r for r in hourly["intervals"]}  # local time (UTC+2)
+    assert rows["08:00"]["rain_mm"] == 2.0 and rows["08:00"]["condition"] == "rain"
+    assert rows["09:00"]["snowfall_cm"] == 1.0 and rows["09:00"]["condition"] == "snow"
+    assert rows["09:00"]["snow_mm"] == 0.7 and rows["08:00"]["snow_mm"] == 0
+    # hourly probability covers the preceding hour: 07:00 UTC -> 06:00–07:00 UTC = 08:00 local
+    assert rows["08:00"]["precipitation_probability"] == 80 and rows["09:00"]["precipitation_probability"] == 5
+    assert rows["12:00"]["condition"] == "clear" and rows["12:00"]["cloud_cover"] == 0
+    # mean temperature of the hour: instants 0.1 K apart, the interval mean lies between them
+    assert rows["11:00"]["temperature_c"] == pytest.approx(rows["10:00"]["temperature_c"] + 0.4, abs=0.05)
+    quarter = await service.weather("", "15m")
+    assert len(quarter["intervals"]) == 2 * 96
+    with pytest.raises(ForecastRequestError):
+        await service.weather("", "5m")
+
+
+def test_weather_without_precipitation_columns():
+    # older answers (and the PV-only mock) have no precipitation: values stay None
+    service = _service(_answer())
+    asyncio.run(service.refresh())
+    point = service.state.weather[0]
+    assert point.precipitation is None and point.precipitation_probability is None and point.rain is None
+    assert "precipitation" not in service.current_weather()
 
 
 async def test_pv_forecast_chart():
