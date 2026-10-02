@@ -231,6 +231,33 @@ async def test_energy_per_local_day(prom):
         await history.energy(list(history.hub.appliances.values()), "day", "2025-01-01")
 
 
+async def test_derived_figures_need_the_same_coverage(prom):
+    # PV, import and export imported for days; direct consumption and battery only
+    # recorded since 25 Sep 12:00: house consumption and self-sufficiency for 25 Sep (and
+    # the total) would mix both and are left out; self-consumption (PV, export) stays.
+    now = datetime(2026, 9, 26, 18, 0, tzinfo=TZ)
+    d24 = datetime(2026, 9, 24, tzinfo=TZ).timestamp()
+    for i in range(66):
+        t = d24 + 1800 + i * 3600
+        prom.add("housevitals_pv_energy_kWh_total", "inverter", [(t, 1000 + 2 * i)])
+        prom.add("housevitals_import_energy_kWh_total", "inverter", [(t, 50 + 0.5 * i)])
+        prom.add("housevitals_export_energy_kWh_total", "inverter", [(t, 5 + 0.5 * i)])
+        if i >= 36:  # from 25 Sep 12:30
+            prom.add("housevitals_direct_consumption_kWh_total", "inverter", [(t, 10 + i)])
+            prom.add("housevitals_battery_discharge_kWh_total", "inverter", [(t, 20 + 0.5 * i)])
+    history = _history(prom, now)
+    result = await history.energy([history.hub.get("inverter")], "day", "2026-09-24")
+    inv = result["appliances"]["inverter"]
+    day25 = next(p for p in inv["periods"] if p["start"].startswith("2026-09-25"))
+    assert day25["partial"] and day25["kWh"]["total_direct_consumption"] is not None
+    assert "house_consumption" not in day25.get("derived", {})
+    assert "self_sufficiency" not in day25.get("derived", {})
+    assert day25["derived"]["self_consumption_rate"] == 0.75
+    assert "self_sufficiency" not in inv["total"].get("derived", {})
+    day26 = next(p for p in inv["periods"] if p["start"].startswith("2026-09-26"))
+    assert "self_sufficiency" in day26["derived"]  # all counters cover 26 Sep from its start
+
+
 async def test_history_series_and_errors(prom):
     now = datetime(2026, 9, 26, 12, 0, tzinfo=TZ)
     t0 = now.timestamp() - 3600
