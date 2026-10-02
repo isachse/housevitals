@@ -228,9 +228,8 @@ def _forecast_power(forecast) -> Iterable[Observation]:
 
 
 def _forecast_energy(forecast) -> Iterable[Observation]:
-    if forecast.state.weather:
-        for day, kwh in forecast.day_energy().items():
-            yield Observation(kwh, {"day": day})
+    for day, kwh in forecast.day_energy().items():
+        yield Observation(kwh, {"day": day})
 
 
 def _forecast_weather(forecast, key: str) -> Iterable[Observation]:
@@ -240,15 +239,14 @@ def _forecast_weather(forecast, key: str) -> Iterable[Observation]:
 
 
 def _forecast_ratio(forecast) -> Iterable[Observation]:
-    for array in forecast.config.arrays:
-        cal = forecast.state.calibration.get(array.name)
-        if cal is not None and cal.calibrated:
-            yield Observation(cal.performance_ratio, {"array": array.name})
+    for array, ratio in forecast.performance_ratios().items():
+        yield Observation(ratio, {"array": array})
 
 
 def _forecast_age(forecast) -> Iterable[Observation]:
-    if forecast.state.fetched_at is not None:
-        yield Observation(forecast.now() - forecast.state.fetched_at, {})
+    age = forecast.age_s()
+    if age is not None:
+        yield Observation(age, {})
 
 
 def _make_callback(series: list[_Series]):

@@ -224,6 +224,18 @@ class History:
             "query": query, "start": start.timestamp(), "end": end.timestamp(), "step": step})
         return data["result"]
 
+    # ----------------------------------------------------------------- PromQL building blocks
+    # For other components that build their own queries (e.g. the forecast's calibration):
+    # one recorded data point as an expression (all its series combined), and a range query
+    # with the same error handling as every history request.
+    def point(self, appliance: str, key: str) -> str:
+        """PromQL for one recorded data point, its series combined per appliance."""
+        app = self.hub.get(appliance)
+        return f"max by (appliance) ({self.series(app, key).selector})"
+
+    async def query_range(self, query: str, start: datetime, end: datetime, step: int) -> list[dict]:
+        return await self._range(query, start, end, step)
+
     # ----------------------------------------------------------------- helpers
     def now(self) -> datetime:
         return datetime.now(self.tz)

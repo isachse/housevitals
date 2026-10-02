@@ -380,4 +380,77 @@ async def test_control_api_restore_value_and_refusal(neo_device, tmp_path):
         refused = await c.put(url, headers=headers, json={"value": 55, "duration_s": 60, "owner": OWNER})
         assert refused.status_code == 422
         assert refused.json()["device_value"] == 45.0 and refused.json()["restored"] == 42.0
+        assert refused.json()["code"] == "override_rejected"  # not a validation error
     await services.close()
+
+
+async def test_cancelled_during_the_check_ends_the_lease_and_restores(neo_device, tmp_path):
+    # The client gives up (or the service stops) after the write: the value on the device
+    # must still have a lease that brings the baseline back.
+    hub, mgr = _manager(neo_device, tmp_path)
+    mgr.hub.config.service.override_verify_delay_s = 5
+    task = asyncio.create_task(mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600))
+    for _ in range(100):  # wait until the write is done and the check is sleeping
+        await asyncio.sleep(0.02)
+        if await _device_value(hub) == 50:
+            break
+    on_disk = json.loads((tmp_path / "overrides.json").read_text())["leases"]
+    assert on_disk and on_disk[0]["pending"] is True  # persisted before the write
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    lease = mgr.leases[("hp", "dhw_setpoint_min")]
+    assert lease.until <= time.time() and not lease.pending
+    await mgr.check()
+    assert await _device_value(hub) == 42 and mgr.leases == {}
+    await hub.stop()
+
+
+async def test_lease_pending_at_a_restart_is_ended(neo_device, tmp_path):
+    # Simulates a crash between the write and the end of the check.
+    hub, mgr = _manager(neo_device, tmp_path)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    state = json.loads((tmp_path / "overrides.json").read_text())
+    state["leases"][0].update(pending=True, prior_raw=state["leases"][0]["baseline_raw"])
+    (tmp_path / "overrides.json").write_text(json.dumps(state))
+    hub2 = Hub(_config(neo_device, tmp_path / "overrides.json"))
+    mgr2 = OverrideManager(hub2, tmp_path / "overrides.json")
+    assert mgr2.leases[("hp", "dhw_setpoint_min")].until <= time.time()
+    await mgr2.check()
+    assert await _device_value(hub2) == 42 and mgr2.leases == {}
+    await hub.stop()
+    await hub2.stop()
+
+
+async def test_changing_a_lease_interrupted_restores_either_value(neo_device, tmp_path):
+    # Lease at 50, change to 52 fails after the write was sent: whether the device holds
+    # 50 or 52, both are "ours" and the baseline is restored.
+    hub, mgr = _manager(neo_device, tmp_path)
+    await mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600)
+    app = hub.get("hp")
+    real_write = app.write
+
+    async def failing_write(register, raw):
+        raise RuntimeError("connection dropped")  # nothing reached the device
+
+    app.write = failing_write
+    with pytest.raises(RuntimeError):
+        await mgr.apply("hp", "dhw_setpoint_min", 52, OWNER, duration_s=3600)
+    app.write = real_write
+    assert await _device_value(hub) == 50
+    await mgr.check()
+    assert await _device_value(hub) == 42 and mgr.leases == {}
+    await hub.stop()
+
+
+async def test_check_of_one_register_does_not_block_others(neo_device, tmp_path):
+    hub, mgr = _manager(neo_device, tmp_path)
+    mgr.hub.config.service.override_verify_delay_s = 1.0
+    slow = asyncio.create_task(mgr.apply("hp", "dhw_setpoint_min", 50, OWNER, duration_s=3600))
+    await asyncio.sleep(0.2)
+    started = time.monotonic()
+    await mgr.apply("hp", "return_setpoint_active", "on", OWNER, duration_s=3600)
+    # its own check takes 1 s; waiting for the other register's check would add ~0.8 s
+    assert time.monotonic() - started < 1.5
+    await slow
+    await hub.stop()

@@ -9,10 +9,15 @@ value until a given time. The manager
   the lease expires or is released, also after a restart (leases are persisted),
 * never writes a value the device already has, and limits writes per register and
   day, because controllers often keep setpoints in EEPROM,
+* records (and persists) the lease before it writes, so a value on the device always
+  has a lease that restores it: if the request fails or is cancelled after the write,
+  or the service stops, the lease ends at once and the baseline is restored,
 * checks a written value again after `override_verify_delay_s`: if the device has
   adjusted it (e.g. clamped to a limit of its own), the request is refused and the
   previous value written back, so a caller never believes in an override that has no
   effect,
+* serialises requests per register only: a check on one register does not hold up
+  others or the restore of ended leases,
 * leaves a manual change alone: if the register no longer holds the override value
   when the lease ends, someone changed it on the device and it is not restored,
 * writes `restore_value` instead of the baseline at the end if the caller asks for it
@@ -93,6 +98,14 @@ class Lease:
     last_error: str | None = None
     restore_value: Any = None  # written at the end instead of the baseline, if set
     restore_raw: int | None = None
+    # while a write is in flight: the value the device held before (the previous override
+    # value for a changed lease), so either one is recognised as "ours" when restoring
+    pending: bool = False
+    prior_raw: int | None = None
+
+    def holds(self, raw: int) -> bool:
+        """True if the device value is ours (not a manual change)."""
+        return raw == self.raw or (self.prior_raw is not None and raw == self.prior_raw)
 
     @property
     def end_raw(self) -> int:
@@ -132,7 +145,7 @@ class OverrideManager:
         self.leases: dict[tuple[str, str], Lease] = {}
         self.writes_today: dict[tuple[str, str], tuple[str, int]] = {}  # -> (local date, count)
         self.writes_total: dict[tuple[str, str], int] = {}  # since start, for metrics
-        self._lock = asyncio.Lock()
+        self._locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._task: asyncio.Task | None = None
         self._load()
 
@@ -154,7 +167,7 @@ class OverrideManager:
         now = time.time()
         end = self._end_time(now, until, duration_s, rule)
         k = (app.name, key)
-        async with self._lock:
+        async with self._lock(k):
             lease = self.leases.get(k)
             if lease is not None and lease.restoring:
                 raise OverrideConflictError(
@@ -164,18 +177,38 @@ class OverrideManager:
                 raise OverrideConflictError(f"{app.name}/{key} is held by '{lease.owner}'",
                                             details={"override": lease.describe()})
             current = await app.read_now(reg)
-            written = False
-            if current["raw"] != raw:
+            written = current["raw"] != raw
+            if written:
                 self._charge(k, rule)
-                await app.write(reg, raw)
-                written = True
-                await self._verify_settled(app, reg, rule, k, raw, current)
-            if lease is None:
+            new = lease is None
+            undo = None if new else (lease.value, lease.raw)
+            if new:
                 lease = Lease(app.name, key, _label(reg, rule, raw), raw, current["value"],
                               current["raw"], owner, now, end, reason)
                 self.leases[k] = lease
-            else:
-                lease.value, lease.raw, lease.until, lease.reason = _label(reg, rule, raw), raw, end, reason
+            if written:
+                # the lease exists (on disk) before the device changes
+                lease.prior_raw, lease.pending = current["raw"], True
+                lease.value, lease.raw = _label(reg, rule, raw), raw
+                self._save()
+                try:
+                    await app.write(reg, raw)
+                    await self._verify_settled(app, reg, rule, k, raw, current)
+                except OverrideRejectedError:  # the previous value is back on the device
+                    if new:
+                        del self.leases[k]
+                    else:
+                        (lease.value, lease.raw), lease.pending, lease.prior_raw = undo, False, None
+                    self._save()
+                    raise
+                except BaseException:  # failed or cancelled: unknown what the device holds
+                    lease.until, lease.pending = min(lease.until, time.time()), False
+                    self._save()
+                    _LOGGER.warning("Override %s/%s interrupted after the write; ending it, "
+                                    "the baseline will be restored", *k)
+                    raise
+            lease.value, lease.raw, lease.until, lease.reason = _label(reg, rule, raw), raw, end, reason
+            lease.pending, lease.prior_raw = False, None
             if restore_raw is not None:
                 lease.restore_value, lease.restore_raw = _label(reg, rule, restore_raw), restore_raw
             self._save()
@@ -187,7 +220,7 @@ class OverrideManager:
         """End an override early and restore the baseline."""
         app = self.hub.get(appliance)
         k = (app.name, key)
-        async with self._lock:
+        async with self._lock(k):
             lease = self.leases.get(k)
             if lease is None:
                 raise NotFoundError(f"No active override for {app.name}/{key}")
@@ -245,14 +278,18 @@ class OverrideManager:
     async def check(self) -> None:
         """Restore every override that has ended (or whose restore failed before)."""
         now = time.time()
-        async with self._lock:
-            for lease in list(self.leases.values()):
-                if lease.until > now and not lease.restoring:
-                    continue
-                app = self.hub.appliances.get(lease.appliance)
-                if app is not None and app.fail_fast():
-                    continue  # appliance is down; retried after its back-off
-                await self._restore(lease)
+        for lease in list(self.leases.values()):
+            if lease.until > now and not lease.restoring:
+                continue
+            app = self.hub.appliances.get(lease.appliance)
+            if app is not None and app.fail_fast():
+                continue  # appliance is down; retried after its back-off
+            k = (lease.appliance, lease.key)
+            if self._lock(k).locked():
+                continue  # a request is working on it; next round
+            async with self._lock(k):
+                if self.leases.get(k) is lease:
+                    await self._restore(lease)
 
     # ------------------------------------------------------------------ internals
     async def _verify_settled(self, app: Appliance, reg: Register, rule: OverrideRule,
@@ -280,7 +317,7 @@ class OverrideManager:
                      "restored": previous["value"]})
 
     async def _restore(self, lease: Lease) -> str:
-        """Write the baseline back. Called with the lock held. Returns the outcome."""
+        """Write the baseline back. Called with the register's lock held. Returns the outcome."""
         k = (lease.appliance, lease.key)
         app = self.hub.appliances.get(lease.appliance)
         reg = app.profile.registers.get(lease.key) if app else None
@@ -291,7 +328,7 @@ class OverrideManager:
             return "dropped"
         try:
             current = await app.read_now(reg)
-            if current["raw"] != lease.raw:
+            if not lease.holds(current["raw"]):
                 outcome = "kept_manual_change"
                 _LOGGER.warning("Override %s/%s ended, but the device now holds %s instead of %s: "
                                 "changed manually, not restored", *k, current["value"], lease.value)
@@ -338,6 +375,9 @@ class OverrideManager:
                 f"(requested until {_iso(end)})")
         return end
 
+    def _lock(self, k: tuple[str, str]) -> asyncio.Lock:
+        return self._locks.setdefault(k, asyncio.Lock())
+
     def _today(self) -> str:
         return datetime.now(self.tz).date().isoformat()
 
@@ -365,6 +405,10 @@ class OverrideManager:
             data = json.loads(self.state_file.read_text(encoding="utf-8"))
             for item in data.get("leases", []):
                 lease = Lease(**item)
+                if lease.pending:  # stopped during a write: end it, the baseline is restored
+                    lease.until, lease.pending = min(lease.until, time.time()), False
+                    _LOGGER.warning("Override %s/%s was interrupted during a write; ending it",
+                                    lease.appliance, lease.key)
                 self.leases[(lease.appliance, lease.key)] = lease
             for name, (date, count) in data.get("writes_today", {}).items():
                 app, key = name.split("/", 1)

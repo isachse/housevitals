@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from .charts import ChartService
 from .config import ServerConfig
-from .forecast import ForecastService, PrometheusMeasurements
+from .forecast import ForecastService, HouseMeasurements
 from .history import History
 from .hub import Hub
 from .overrides import OverrideManager
@@ -32,15 +32,13 @@ class Services:
         svc = config.service
         if history is None and svc.prometheus_url:
             history = History(hub, svc.prometheus_url, svc.timezone)
-        charts = ChartService(hub, history) if history is not None else None
         if overrides is None and control and any(d.overrides for d in config.devices):
             overrides = OverrideManager(hub, svc.override_state_file)
         forecast = None
         if config.forecast is not None and history is not None:
-            measurements = PrometheusMeasurements(history, config.forecast.appliance, config.forecast.load)
-            forecast = ForecastService(hub, config.forecast, measurements, svc.timezone)
-            if charts is not None:
-                charts.forecast = forecast
+            forecast = ForecastService(config.forecast, HouseMeasurements(hub, history, config.forecast),
+                                       svc.timezone)
+        charts = ChartService(hub, history, forecast) if history is not None else None
         return cls(config, hub, history, charts, overrides, forecast)
 
     async def close(self) -> None:
