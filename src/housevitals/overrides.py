@@ -18,6 +18,9 @@ value until a given time. The manager
   effect,
 * serialises requests per register only: a check on one register does not hold up
   others or the restore of ended leases,
+* returns every register to its previous value when the service stops
+  (`service.restore_overrides_on_stop`, default on), and on the next start after an
+  unclean end (crash, power loss), so no override outlives the service,
 * leaves a manual change alone: if the register no longer holds the override value
   when the lease ends, someone changed it on the device and it is not restored,
 * writes `restore_value` instead of the baseline at the end if the caller asks for it
@@ -134,8 +137,11 @@ class Lease:
 
 
 class OverrideManager:
-    def __init__(self, hub: Hub, state_file: str | Path | None = None):
+    def __init__(self, hub: Hub, state_file: str | Path | None = None,
+                 restore_on_stop: bool | None = None):
         self.hub = hub
+        self.restore_on_stop = (hub.config.service.restore_overrides_on_stop
+                                if restore_on_stop is None else restore_on_stop)
         self.tz = ZoneInfo(hub.config.service.timezone)
         self.rules: dict[tuple[str, str], tuple[Register, OverrideRule]] = {}
         for app in hub.appliances.values():
@@ -255,17 +261,44 @@ class OverrideManager:
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
+        if self.restore_on_stop and self.leases:
+            # Leases left from the previous run: it did not end cleanly (a clean stop
+            # restores them). End them now; the first check restores the values.
+            now = time.time()
+            for lease in self.leases.values():
+                lease.until = min(lease.until, now)
+            self._save()
+            _LOGGER.warning("%d override(s) left from an unclean stop; restoring them",
+                            len(self.leases))
         if self._task is None and (self.rules or self.leases):
             self._task = asyncio.create_task(self.run(), name="overrides")
 
     async def stop(self) -> None:
-        """Stop checking. Active leases stay in place and persisted: a restart (e.g. an
-        update) must not cost two extra writes; expired ones are restored on start."""
+        """Stop checking and, with restore_on_stop, end every active override: the
+        registers return to their previous (or restore_value) values. A value that
+        cannot be written now (device down) stays persisted and is restored on the next
+        start. Without restore_on_stop, leases stay in place across a restart."""
         if self._task is not None:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
             self._task = None
+        if self.restore_on_stop and self.leases:
+            await self.restore_all("service stopping")
+
+    async def restore_all(self, reason: str) -> dict[str, str]:
+        """End every override now and restore its register. Returns {appliance/key: outcome}."""
+        outcomes = {}
+        now = time.time()
+        for k, lease in list(self.leases.items()):
+            async with self._lock(k):
+                if self.leases.get(k) is not lease:
+                    continue
+                lease.until = min(lease.until, now)
+                outcomes["/".join(k)] = await self._restore(lease)
+        _LOGGER.info("Overrides ended (%s): %s", reason,
+                     ", ".join(f"{k} {v}" for k, v in outcomes.items()) or "none")
+        return outcomes
 
     async def run(self) -> None:
         while True:

@@ -269,6 +269,7 @@ Open-Meteo ──► forecast (PV, surplus, weather) ──► REST API · MCP �
 | `instance_id` | `housevitals` | Prometheus `instance` label of all metrics; keep it fixed (see below) |
 | `control_token_file` | – | File with the bearer token for writing overrides (or env `HOUSEVITALS_CONTROL_TOKEN`); without a token the control API is read-only |
 | `override_state_file` | `~/.local/state/housevitals/overrides.json` | Active overrides and today's write counts, kept across restarts |
+| `restore_overrides_on_stop` | `true` | End all overrides (restore the previous values) when the service stops, and after an unclean end at the next start |
 | `override_verify_delay_s` | `10` | Seconds after a write before the value is checked a second time (devices that adjust a value shortly after accepting it) |
 | `derived_state_file` | `~/.local/state/housevitals/derived.json` | Counters of derived data points (e.g. energy integrated from power), kept across restarts |
 
@@ -498,7 +499,8 @@ to correct a setpoint: `{"value": 42, "restore_value": 42, "duration_s": 60, ...
 | Verification | The value is read back right after writing and again after `service.override_verify_delay_s` (default 10 s). Some controllers accept a value and adjust it a few seconds later (the Brötje NEO limits the hot water minimum to the maximum − 5 K after about 5 s). Then the previous value is written back and the request fails with `422` (`requested`, `device_value`, `restored`), so no caller relies on an override without effect. |
 | Few writes | Nothing is written if the device already has the value. Controllers often keep setpoints in EEPROM, hence the daily write budget (`429` with `Retry-After` when used up). |
 | Manual changes win | If the register no longer holds the override value when it ends, someone changed it on the device; it is left alone and logged. |
-| Restarts | Overrides are persisted (`override_state_file`, mode 600). A restart keeps running overrides; expired ones are restored on start. |
+| Service stop | When the service stops, every override ends and its register gets its previous value (or `restore_value`) back (`service.restore_overrides_on_stop`, default on). After an unclean end (crash, power loss) the overrides found at the next start are restored at once. A value that cannot be written while stopping (device down) is restored at the next start. With the option off, running overrides survive a restart instead. |
+| Persistence | Overrides are persisted (`override_state_file`, mode 600), so a restore is never lost. |
 | Lease before write | The override is persisted before the device is written. If the request fails or is cancelled after the write, or the service stops during the check, the override ends at once and the previous value is restored: a value on the device always has an override that brings it back. |
 | Per register | Requests are serialised per register; the check of one register never holds up another or the restore of ended overrides. |
 | Appliance down | Applying fails with `503`. A restore that fails is retried after the appliance's back-off (state `restoring`); meanwhile the register cannot be overridden again. |
