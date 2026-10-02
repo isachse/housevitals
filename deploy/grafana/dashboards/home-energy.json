@@ -3588,14 +3588,323 @@
     },
     {
       "type": "row",
-      "title": "Details · PV-Anlage",
-      "collapsed": true,
-      "id": 42,
+      "title": "Langzeit · Wärmepumpen (RKM-Log)",
+      "collapsed": false,
+      "id": 38,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 71
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Verdichterstarts pro Woche",
+      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "lineInterpolation": "smooth",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": false,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "timeFrom": "3y",
+      "id": 39,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "WP1",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "WP2",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Laufzeit pro Woche",
+      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: h",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "lineInterpolation": "smooth",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": false,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP1 Heizung"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP1 Warmwasser"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9085e9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP2 Heizung"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WP2 Warmwasser"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "timeFrom": "3y",
+      "id": 40,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "WP1 Heizung",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "WP1 Warmwasser",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "WP2 Heizung",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "WP2 Warmwasser",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Details · PV-Anlage",
+      "collapsed": true,
+      "id": 45,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
       },
       "panels": [
         {
@@ -3604,7 +3913,7 @@
           "description": "MPPT-Spannung × Strom.",
           "gridPos": {
             "x": 0,
-            "y": 72,
+            "y": 82,
             "w": 12,
             "h": 8
           },
@@ -3699,7 +4008,7 @@
               "sort": "none"
             }
           },
-          "id": 38,
+          "id": 41,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3746,7 +4055,7 @@
           "description": "Positiv = Bezug, negativ = Einspeisung.",
           "gridPos": {
             "x": 12,
-            "y": 72,
+            "y": 82,
             "w": 12,
             "h": 8
           },
@@ -3841,7 +4150,7 @@
               "sort": "none"
             }
           },
-          "id": 39,
+          "id": 42,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3888,7 +4197,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 80,
+            "y": 90,
             "w": 12,
             "h": 8
           },
@@ -3969,7 +4278,7 @@
               "sort": "none"
             }
           },
-          "id": 40,
+          "id": 43,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4005,7 +4314,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 80,
+            "y": 90,
             "w": 12,
             "h": 8
           },
@@ -4100,7 +4409,7 @@
               "sort": "none"
             }
           },
-          "id": 41,
+          "id": 44,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4147,12 +4456,12 @@
       "type": "row",
       "title": "Details · Wärmepumpen",
       "collapsed": true,
-      "id": 47,
+      "id": 50,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 82
       },
       "panels": [
         {
@@ -4161,7 +4470,7 @@
           "description": "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.",
           "gridPos": {
             "x": 0,
-            "y": 73,
+            "y": 83,
             "w": 12,
             "h": 8
           },
@@ -4291,7 +4600,7 @@
               "sort": "none"
             }
           },
-          "id": 43,
+          "id": 46,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4349,7 +4658,7 @@
           "description": "Durchgezogen = Kondensation, gestrichelt = Verdampfung.",
           "gridPos": {
             "x": 12,
-            "y": 73,
+            "y": 83,
             "w": 12,
             "h": 8
           },
@@ -4480,7 +4789,7 @@
               "sort": "none"
             }
           },
-          "id": 44,
+          "id": 47,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4538,7 +4847,7 @@
           "description": "Durchgezogen = Wärmequelle (Eintritt), gestrichelt = Pufferspeicher.",
           "gridPos": {
             "x": 0,
-            "y": 81,
+            "y": 91,
             "w": 12,
             "h": 8
           },
@@ -4669,7 +4978,7 @@
               "sort": "none"
             }
           },
-          "id": 45,
+          "id": 48,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4727,7 +5036,7 @@
           "description": "Liter pro Minute.",
           "gridPos": {
             "x": 12,
-            "y": 81,
+            "y": 91,
             "w": 12,
             "h": 8
           },
@@ -4808,7 +5117,7 @@
               "sort": "none"
             }
           },
-          "id": 46,
+          "id": 49,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4844,12 +5153,12 @@
       "type": "row",
       "title": "Dienst · housevitals",
       "collapsed": true,
-      "id": 50,
+      "id": 53,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 73
+        "y": 83
       },
       "panels": [
         {
@@ -4858,7 +5167,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 74,
+            "y": 84,
             "w": 12,
             "h": 6
           },
@@ -4907,7 +5216,7 @@
               "sort": "none"
             }
           },
-          "id": 48,
+          "id": 51,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4954,7 +5263,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 74,
+            "y": 84,
             "w": 12,
             "h": 6
           },
@@ -5049,7 +5358,7 @@
               "sort": "none"
             }
           },
-          "id": 49,
+          "id": 52,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

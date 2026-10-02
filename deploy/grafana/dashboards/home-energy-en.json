@@ -3589,14 +3589,323 @@
     },
     {
       "type": "row",
-      "title": "Details · PV system",
-      "collapsed": true,
-      "id": 42,
+      "title": "Long term · heat pumps (RKM log)",
+      "collapsed": false,
+      "id": 38,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 71
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Compressor starts per week",
+      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week starting at the bar. Gaps = no log on the card.",
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "lineInterpolation": "smooth",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": false,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "timeFrom": "3y",
+      "id": 39,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "HP1",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_compressor_starts_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "HP2",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Running hours per week",
+      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week starting at the bar. Gaps = no log on the card.",
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: h",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "lineInterpolation": "smooth",
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "pointSize": 8,
+            "spanNulls": false,
+            "barAlignment": -1,
+            "barWidthFactor": 0.8,
+            "axisBorderShow": false,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP1 Heating"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP1 Hot water"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9085e9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP2 Heating"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP2 Hot water"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "7d",
+      "timeFrom": "3y",
+      "id": 40,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "HP1 Heating",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump1\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump1\"}[7d]))",
+          "legendFormat": "HP1 Hot water",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_heating_hours_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "HP2 Heating",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump2\"}[7d] offset -7d)) - max by (appliance) (max_over_time(housevitals_rkm_dhw_hours_total{appliance=\"heatpump2\"}[7d]))",
+          "legendFormat": "HP2 Hot water",
+          "range": true,
+          "instant": false,
+          "interval": "7d",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Details · PV system",
+      "collapsed": true,
+      "id": 45,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 81
       },
       "panels": [
         {
@@ -3605,7 +3914,7 @@
           "description": "MPPT voltage × current.",
           "gridPos": {
             "x": 0,
-            "y": 72,
+            "y": 82,
             "w": 12,
             "h": 8
           },
@@ -3700,7 +4009,7 @@
               "sort": "none"
             }
           },
-          "id": 38,
+          "id": 41,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3747,7 +4056,7 @@
           "description": "Positive = import, negative = feed-in.",
           "gridPos": {
             "x": 12,
-            "y": 72,
+            "y": 82,
             "w": 12,
             "h": 8
           },
@@ -3842,7 +4151,7 @@
               "sort": "none"
             }
           },
-          "id": 39,
+          "id": 42,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -3889,7 +4198,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 80,
+            "y": 90,
             "w": 12,
             "h": 8
           },
@@ -3970,7 +4279,7 @@
               "sort": "none"
             }
           },
-          "id": 40,
+          "id": 43,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4006,7 +4315,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 80,
+            "y": 90,
             "w": 12,
             "h": 8
           },
@@ -4101,7 +4410,7 @@
               "sort": "none"
             }
           },
-          "id": 41,
+          "id": 44,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4148,12 +4457,12 @@
       "type": "row",
       "title": "Details · heat pumps",
       "collapsed": true,
-      "id": 47,
+      "id": 50,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 82
       },
       "panels": [
         {
@@ -4162,7 +4471,7 @@
           "description": "Solid = high pressure, dashed = low pressure.",
           "gridPos": {
             "x": 0,
-            "y": 73,
+            "y": 83,
             "w": 12,
             "h": 8
           },
@@ -4292,7 +4601,7 @@
               "sort": "none"
             }
           },
-          "id": 43,
+          "id": 46,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4350,7 +4659,7 @@
           "description": "Solid = condensation, dashed = evaporation.",
           "gridPos": {
             "x": 12,
-            "y": 73,
+            "y": 83,
             "w": 12,
             "h": 8
           },
@@ -4481,7 +4790,7 @@
               "sort": "none"
             }
           },
-          "id": 44,
+          "id": 47,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4539,7 +4848,7 @@
           "description": "Solid = heat source (inlet), dashed = buffer tank.",
           "gridPos": {
             "x": 0,
-            "y": 81,
+            "y": 91,
             "w": 12,
             "h": 8
           },
@@ -4670,7 +4979,7 @@
               "sort": "none"
             }
           },
-          "id": 45,
+          "id": 48,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4728,7 +5037,7 @@
           "description": "Litres per minute.",
           "gridPos": {
             "x": 12,
-            "y": 81,
+            "y": 91,
             "w": 12,
             "h": 8
           },
@@ -4809,7 +5118,7 @@
               "sort": "none"
             }
           },
-          "id": 46,
+          "id": 49,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4845,12 +5154,12 @@
       "type": "row",
       "title": "Service · housevitals",
       "collapsed": true,
-      "id": 50,
+      "id": 53,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 73
+        "y": 83
       },
       "panels": [
         {
@@ -4859,7 +5168,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 74,
+            "y": 84,
             "w": 12,
             "h": 6
           },
@@ -4908,7 +5217,7 @@
               "sort": "none"
             }
           },
-          "id": 48,
+          "id": 51,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4955,7 +5264,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 74,
+            "y": 84,
             "w": 12,
             "h": 6
           },
@@ -5050,7 +5359,7 @@
               "sort": "none"
             }
           },
-          "id": 49,
+          "id": 52,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

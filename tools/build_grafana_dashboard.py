@@ -82,6 +82,20 @@ def daily_energy(counter: str, appliance: str) -> str:
             f" - max by (appliance) (max_over_time({sel}[1d]))")
 
 
+RKM_NOTE = ("Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), "
+            "importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der "
+            "Woche, beginnend am Balken. Lücken = kein Log auf der Karte.")
+DHW_COLOR = {"WP1": VIOLET, "WP2": MAGENTA}
+
+
+def weekly_increase(counter: str, appliance: str) -> str:
+    """Increase of an imported NEO-RKM counter in the week starting at the bar (hourly
+    samples: end minus start, not increase())."""
+    sel = f'{M}rkm_{counter}_total{{appliance="{appliance}"}}'
+    return (f"max by (appliance) (max_over_time({sel}[7d] offset -7d))"
+            f" - max by (appliance) (max_over_time({sel}[7d]))")
+
+
 def target(expr: str, legend: str = "", instant: bool = False, interval: str | None = None) -> dict:
     expr = per_appliance(expr)
     t = {"datasource": DS, "expr": expr, "legendFormat": legend or "__auto", "range": not instant,
@@ -426,6 +440,25 @@ def build() -> dict:
         overrides=[override(s, c) for _, s, c in HEAT_PUMPS]))
     y += 8
 
+    # ---- Langzeit: Wärmepumpen aus dem NEO-RKM-Log (tools/import_rkm_log.py)
+    panels.append(row("Langzeit · Wärmepumpen (RKM-Log)", y)); y += 1
+    t = [target(weekly_increase("compressor_starts", a), s, interval="7d") for a, s, _ in HEAT_PUMPS]
+    starts = timeseries(
+        "Verdichterstarts pro Woche", t, g(0, y, 12, 9), "none", bars=True, decimals=0, interval="7d",
+        description=RKM_NOTE, overrides=[override(s, c) for _, s, c in HEAT_PUMPS])
+    t, o = [], []
+    for a, s, c in HEAT_PUMPS:
+        for counter, part, color in (("heating_hours", "Heizung", c), ("dhw_hours", "Warmwasser", DHW_COLOR[s])):
+            t.append(target(weekly_increase(counter, a), f"{s} {part}", interval="7d"))
+            o.append(override(f"{s} {part}", color))
+    hours = timeseries(
+        "Laufzeit pro Woche", t, g(12, y, 12, 9), "suffix: h", bars=True, decimals=0, interval="7d", stack=True,
+        description=RKM_NOTE, overrides=o)
+    for panel in (starts, hours):
+        panel["timeFrom"] = "3y"  # the log reaches back years; bars sit at the start of their week
+    panels += [starts, hours]
+    y += 9
+
     # ---- Details (collapsed)
     pv_details = []
     dy = y + 1
@@ -656,6 +689,11 @@ TRANSLATIONS = {
         "Wärmepumpen · Strom pro Tag": "Heat pumps · electricity per day",
         "Vor- und Rücklauf": "Flow and return", "Arbeitszahl pro Tag": "Performance factor per day",
         "Wärme pro Tag": "Heat per day",
+        "Langzeit · Wärmepumpen (RKM-Log)": "Long term · heat pumps (RKM log)",
+        "Verdichterstarts pro Woche": "Compressor starts per week", "Heizung": "Heating", "Laufzeit pro Woche": "Running hours per week",
+        RKM_NOTE: "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported "
+                  "with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week "
+                  "starting at the bar. Gaps = no log on the card.",
         "PV-Leistung je String": "PV power per string", "Netzleistung je Phase": "Grid power per phase",
         "Netzspannung je Phase": "Grid voltage per phase",
         "Temperaturen Wechselrichter & Batterie": "Inverter & battery temperatures",
