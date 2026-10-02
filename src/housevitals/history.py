@@ -392,19 +392,25 @@ class History:
         out: dict[str, Any] = {}
         for app in apps:
             periods, totals, empty = [], {}, 0
+            # Which periods (and whether from their start) each counter covers: derived
+            # figures only combine counters with the same coverage, e.g. not a counter
+            # imported for years with one recorded since last week.
+            coverage: dict[str, list[tuple[int, bool]]] = {}
             for i, (a, b) in enumerate(zip(bounds, bounds[1:])):
                 natural_end = datetime.combine(
                     _next_period(_period_start(a.date(), period), period), datetime.min.time(), self.tz)
                 values, partial = {}, b < natural_end  # period still running
+                late: dict[str, bool] = {}  # key -> value counts from its first sample, not the start
                 for s in counters[app.name]:
                     k = (app.name, s.metric)
                     end_v = readings[i + 1].get(k)
                     start_v = readings[i].get(k)
+                    key = out_key.get((app.name, s.reg.key), s.reg.key)
+                    late[key] = False
                     if start_v is None or (end_v is not None and start_v > end_v):
                         start_v = firsts[i].get(k)
                         if start_v is not None:
-                            partial = True
-                    key = out_key.get((app.name, s.reg.key), s.reg.key)
+                            partial = late[key] = True
                     if start_v is None or end_v is None or end_v < start_v:
                         values[key] = None
                         continue
@@ -412,8 +418,9 @@ class History:
                 for key, value in values.items():
                     if value is not None:
                         totals[key] = _round(totals.get(key, 0) + value, 2)
+                        coverage.setdefault(key, []).append((i, late[key]))
                 entry = {"start": a.isoformat(timespec="seconds"), "end": b.isoformat(timespec="seconds"),
-                         "kWh": values, **self._derived(app, values)}
+                         "kWh": values, **self._derived(app, values, late)}
                 if all(v is None for v in values.values()):
                     empty += 1  # e.g. before recording started
                     continue
@@ -424,7 +431,7 @@ class History:
                 "type": app.profile.kind.replace("_", " "),
                 "energy_source": "integrated power" if replaced[app.name] else "counters",
                 "periods": periods,
-                "total": {"kWh": totals, **self._derived(app, totals)},
+                "total": {"kWh": totals, **self._derived(app, totals, coverage)},
             }
             if empty:
                 out[app.name]["periods_without_data"] = empty
@@ -442,13 +449,18 @@ class History:
             "appliances": out,
         }
 
-    def _derived(self, app: Appliance, values: dict[str, float | None]) -> dict[str, Any]:
+    def _derived(self, app: Appliance, values: dict[str, float | None],
+                 coverage: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Figures from several counters, only if those counters cover the same time
+        (`coverage`: any comparable description per key)."""
         result = {}
         for name, (num, den, kind) in DERIVED.get(app.profile.name, {}).items():
             n = [values.get(k) for k in num]
             d = [values.get(k) for k in den]
             if any(v is None for v in n + d):
                 continue
+            if coverage is not None and len({repr(coverage.get(k)) for k in (*num, *den)}) > 1:
+                continue  # e.g. imported years vs. a counter recorded since last week
             if kind == "sum":
                 result[name] = _round(sum(n), 2)
             elif sum(d) > 0:
