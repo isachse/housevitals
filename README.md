@@ -770,6 +770,25 @@ that adds them: it integrates the recorded values the same way, writes an OpenMe
 file for `promtool tsdb create-blocks-from openmetrics` and the state file the service
 continues from.
 
+### Sungrow history from iSolarCloud
+
+iSolarCloud exports a yearly "Plant report" CSV with the plant's lifetime counters every
+15 minutes (local time). They are the inverter's own counters: total yield, feed-in
+and purchased energy match housevitals' live counters exactly at the same time.
+[tools/import_sungrow_report.py](tools/import_sungrow_report.py) writes them as
+OpenMetrics under the live metric names (`housevitals_pv_energy_kWh_total`,
+`…_export_energy_…`, `…_import_energy_…`, plus `…_load_energy_kWh_total`), with
+`source="sungrow_portal"`, ending before the first live sample, so `get_energy`, the
+charts and Grafana reach back into the imported years. The hour skipped when daylight
+saving time starts is dropped. Counters must not decrease, so single low samples are
+dropped and a lasting correction of the inverter's counter is kept by lowering the
+earlier samples. Increases per period stay exact, only absolute values before a
+correction are lower than in the report.
+
+Derived figures (self-sufficiency, house consumption, performance factor) are only
+calculated from counters that cover the same time. A counter imported for years is
+not combined with one recorded since last week.
+
 ### NEO-RKM operating log (micro-SD)
 
 The Brötje NEO-RKM keeps a log on its micro-SD card: one file per day (`YYYYMMDD` in
