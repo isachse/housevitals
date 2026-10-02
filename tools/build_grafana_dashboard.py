@@ -35,6 +35,10 @@ FLOW = {"PV": YELLOW, "Haus": BLUE, "Batterie": AQUA, "Netz": ORANGE}
 DASH = {"fill": "dash", "dash": [10, 6]}
 DOT = {"fill": "dot", "dash": [0, 6]}
 
+# Window in which "now" tiles look for the newest value (the forecast dashboard's range
+# ends up to two days ahead).
+NOW_WINDOW = "3d:1m"
+
 _ids = iter(range(1, 1000))
 
 
@@ -134,8 +138,12 @@ def stat(title, targets, grid, unit="none", decimals=None, overrides=None, mappi
     instead of its last reading as if it were current.
     """
     for t in targets:
+        # The newest value, also when the dashboard range is absolute (zoomed in, shifted):
+        # Grafana then ignores timeFrom and evaluates at the range end, which on the
+        # forecast dashboard lies in the future, where an instant query finds nothing.
+        t["expr"] = f"last_over_time(({t['expr']})[{NOW_WINDOW}])"
         if only_when_up:
-            t["expr"] = f"({t['expr']}) and on(appliance) max by (appliance) ({M}up) == 1"
+            t["expr"] += f" and on(appliance) last_over_time((max by (appliance) ({M}up))[{NOW_WINDOW}]) == 1"
         t["instant"], t["range"] = True, False
     defaults = {"unit": unit, "mappings": mappings or [],
                 "color": {"mode": "thresholds"} if thresholds else {"mode": "fixed", "fixedColor": GRAY},

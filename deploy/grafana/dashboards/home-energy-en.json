@@ -148,7 +148,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_pv_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_pv_power_watts{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "PV",
           "range": false,
           "instant": true,
@@ -231,7 +231,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_load_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_load_power_watts{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "House",
           "range": false,
           "instant": true,
@@ -314,7 +314,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_battery_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_battery_power_watts{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "Battery",
           "range": false,
           "instant": true,
@@ -400,7 +400,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_battery_soc_percent{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "State of charge",
           "range": false,
           "instant": true,
@@ -483,7 +483,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_grid_power_watts{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_grid_power_watts{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "Grid",
           "range": false,
           "instant": true,
@@ -569,7 +569,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(1 - max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}) / (max by (appliance) (housevitals_daily_direct_consumption_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}))) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((1 - max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}) / (max by (appliance) (housevitals_daily_direct_consumption_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"}) + max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"})))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "Self-sufficiency",
           "range": false,
           "instant": true,
@@ -637,7 +637,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_pv_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_pv_energy_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "PV",
           "range": false,
           "instant": true,
@@ -705,7 +705,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_import_energy_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "Import",
           "range": false,
           "instant": true,
@@ -773,7 +773,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_export_energy_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_export_energy_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "Feed-in",
           "range": false,
           "instant": true,
@@ -841,7 +841,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_battery_charge_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_battery_charge_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "charged",
           "range": false,
           "instant": true,
@@ -852,7 +852,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_daily_battery_discharge_kWh{appliance=\"inverter\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "discharged",
           "range": false,
           "instant": true,
@@ -935,7 +935,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump1\"})",
+          "expr": "last_over_time((max by (appliance) (housevitals_up{appliance=\"heatpump1\"}))[3d:1m])",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -946,7 +946,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (appliance) (housevitals_up{appliance=\"heatpump2\"})",
+          "expr": "last_over_time((max by (appliance) (housevitals_up{appliance=\"heatpump2\"}))[3d:1m])",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -957,7 +957,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (appliance) (housevitals_up{appliance=\"inverter\"})",
+          "expr": "last_over_time((max by (appliance) (housevitals_up{appliance=\"inverter\"}))[3d:1m])",
           "legendFormat": "Inverter",
           "range": false,
           "instant": true,
@@ -1038,7 +1038,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"})",
+          "expr": "last_over_time((max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"today\"}))[3d:1m])",
           "legendFormat": "today",
           "range": false,
           "instant": true,
@@ -1106,7 +1106,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"})",
+          "expr": "last_over_time((max by (array, day) (housevitals_forecast_pv_energy_kWh{day=\"tomorrow\"}))[3d:1m])",
           "legendFormat": "tomorrow",
           "range": false,
           "instant": true,
@@ -1174,7 +1174,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (array, day) (housevitals_forecast_performance_ratio{array!=\"\"})",
+          "expr": "last_over_time((max by (array, day) (housevitals_forecast_performance_ratio{array!=\"\"}))[3d:1m])",
           "legendFormat": "{{array}}",
           "range": false,
           "instant": true,
@@ -1286,7 +1286,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1297,7 +1297,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_outdoor_temperature_celsius{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1396,7 +1396,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1407,7 +1407,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_flow_temperature_celsius{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1506,7 +1506,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1517,7 +1517,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_dhw_temperature_celsius{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1615,7 +1615,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1626,7 +1626,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_electrical_power_watts{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1716,7 +1716,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_compressor{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_compressor{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1727,7 +1727,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_compressor{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_compressor{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
@@ -1795,7 +1795,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump1\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump1\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump1\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP1",
           "range": false,
           "instant": true,
@@ -1806,7 +1806,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump2\"})) and on(appliance) max by (appliance) (housevitals_up) == 1",
+          "expr": "last_over_time((max by (appliance) (housevitals_heat_delivered_kWh_total{appliance=\"heatpump2\"}) / max by (appliance) (housevitals_electricity_kWh_total{appliance=\"heatpump2\"}))[3d:1m]) and on(appliance) last_over_time((max by (appliance) (housevitals_up))[3d:1m]) == 1",
           "legendFormat": "HP2",
           "range": false,
           "instant": true,
