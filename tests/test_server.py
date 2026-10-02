@@ -52,7 +52,7 @@ def test_profiles_load_and_filter_zones():
         profile = load_profile(name, [1])
         assert profile.find(summary_only=True)
         # Every register must fit in one Modbus request
-        assert all(1 <= r.count <= 125 for r in profile.registers.values())
+        assert all(1 <= r.count <= 125 for r in profile.registers.values() if r.register_type != "derived")
         assert all(r.count == 2 for r in profile.registers.values() if r.data_type.endswith("32"))
 
 

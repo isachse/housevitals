@@ -24,7 +24,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from . import __version__
 from .api import build_router, install_error_handler
-from .config import ConfigError, ServerConfig, parse_config
+from .config import DEFAULT_DERIVED_STATE_FILE, ConfigError, ServerConfig, parse_config
 from .context import Services
 from .metrics import setup_metrics
 from .server import build_server
@@ -146,6 +146,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per Prometheus query
     config = parse_config(argv)
+    if config.service.derived_state_file is None:
+        config.service.derived_state_file = DEFAULT_DERIVED_STATE_FILE
     try:
         app = build_app(config, control_token=load_control_token(config))
     except ConfigError as err:

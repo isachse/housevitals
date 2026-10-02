@@ -98,4 +98,5 @@ def test_dashboard_queries_combine_series():
                 for m in selector.finditer(t.get("expr", "")):  # REST API (Infinity) targets have none
                     before = t["expr"][:m.start()]
                     assert before.endswith(("max by (appliance) (", "sum by (appliance) (increase(",
-                                            "max by (array, day) (")), t["expr"]
+                                            "max by (array, day) (",
+                                            "max by (appliance) (max_over_time(")), t["expr"]
