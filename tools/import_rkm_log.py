@@ -62,6 +62,32 @@ def read_logs(paths: list[Path]) -> tuple[dict[str, dict[int, int]], list[str], 
     return series, problems, sorted(set(days))
 
 
+def remove_foreign(series: dict[str, dict[int, int]]) -> list[str]:
+    """Drop every value at a time where a counter jumps out of line: above both
+    neighbours (a spike), or below the previous value at the end of the log. That happens
+    when a card was briefly in another module, which then wrote its own counters."""
+    notes = []
+    while True:  # one time at a time: a removed spike changes its neighbours' context
+        bad = None
+        for log_id in NAMED:
+            points = sorted(series.get(log_id, {}).items())
+            for i, (t, v) in enumerate(points[1:], 1):
+                prev = points[i - 1][1]
+                nxt = points[i + 1][1] if i + 1 < len(points) else None
+                spike = nxt is not None and v > prev and v > nxt and nxt >= prev
+                if spike or (nxt is None and v < prev):
+                    bad = t if bad is None or spike else bad
+                    if spike:
+                        break
+            if bad is not None:
+                break
+        if bad is None:
+            return notes
+        values = {i: pts.pop(bad) for i, pts in series.items() if bad in pts}
+        notes.append(f"dropped {dt.datetime.fromtimestamp(bad):%Y-%m-%d %H:%M:%S} (out of line, e.g. another "
+                     f"module's counters): {values}")
+
+
 def check(series: dict[str, dict[int, int]]) -> list[str]:
     """Counters must not decrease; every drop is reported (it would read as a reset)."""
     problems = []
@@ -120,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="minutes the module's clock was fast (subtracted from every time)")
     args = ap.parse_args(argv)
     series, problems, days = read_logs([p.expanduser() for p in args.paths])
+    problems += remove_foreign(series)
     problems += check(series)
     if not series:
         print("no log lines found", file=sys.stderr)
@@ -131,9 +158,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(days)} days from {days[0]} to {days[-1]}, {samples} samples of {len(series)} values -> {args.out}")
     for a, b in gaps(days):
         print(f"  no log: {a} to {b} ({(b - a).days + 1} days)")
-    print("increase per month (starts, hot water h, heating h):")
+    print("increase per month (starts, hot water h, heating h; - = not in the log):")
+    show = lambda inc, k: f"{inc[k]:4d}" if k in inc else "   -"  # noqa: E731
     for m, inc in sorted(monthly(series).items()):
-        print(f"  {m}: {inc.get('3375', 0):4d} starts  {inc.get('3171', 0):4d} h hot water  {inc.get('3172', 0):4d} h heating")
+        print(f"  {m}: {show(inc, '3375')} starts  {show(inc, '3171')} h hot water  {show(inc, '3172')} h heating")
     return 0
 
 
