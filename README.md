@@ -875,11 +875,12 @@ Rules that apply throughout:
   `devices.json`, which is git-ignored. Anonymize anything copied from the device.
 
 1. Understand the project first. Read README.md (architecture, "Register profiles",
-   "Code structure"), src/housevitals/registry.py (profile format, PROFILE_NAMES, poll
-   plan), modbus.py, hub.py, history.py (DERIVED figures), charts.py (which charts need
-   which `kind` and keys), one existing profile in src/housevitals/profiles/ and
-   tests/conftest.py (device simulators). Summarize how a device is described and polled
-   before changing anything.
+   "Derived data points", "Code structure"), src/housevitals/registry.py (profile format,
+   PROFILE_NAMES, poll plan, derived rules), modbus.py, hub.py, derived.py, history.py
+   (DERIVED figures), charts.py (which charts need which `kind` and keys), forecast.py
+   (which inverter keys the PV forecast uses), one existing profile in
+   src/housevitals/profiles/ and tests/conftest.py (device simulators). Summarize how a
+   device is described and polled before changing anything.
 
 2. Investigate the protocol and the connection.
    - Find the official documentation (register map, API reference) and check existing
@@ -910,10 +911,19 @@ Rules that apply throughout:
 4. Build the profile with good data points.
    - Stable snake_case keys, reusing existing names for the same quantity (e.g.
      battery_soc, pv_power, flow_temperature, electricity_total), so charts, metrics and
-     energy statistics work across vendors. English `label`, `label_de` if you can.
-   - Units and scale so values are engineering units; `enum` for state codes;
-     `invalid_raw` for "not available" markers; `word_order` for 32-bit values;
-     categories consistent with the other profiles.
+     energy statistics work across vendors. For inverters, also the keys the PV forecast
+     reads: load_power, battery_soc, battery_capacity and per MPPT a power key or
+     mpptN_voltage/mpptN_current. English `label`, `label_de` if you can.
+   - Per register: `address`, `register_type`, `data_type`, `count`, `scale` and `unit`
+     so values are engineering units; `enum` for state codes; `invalid_raw` for "not
+     available" markers; `word_order` for 32-bit values; `bit` for single bits; `zone`
+     for per-circuit registers; `category` consistent with the other profiles;
+     `writable` stays false (writes only ever happen through allow-listed overrides).
+   - If the device does not update a value over Modbus (e.g. energy counters that stay
+     frozen while power values are live), compute it as a derived data point: `derived`
+     rules in the profile (`integrate` a power value, optionally `when` a state has a
+     value, `replaces` the frozen counter, `scale`, `max_gap_s`), enabled per device
+     with `energy_from_power`. Never compute such values at query time.
    - `summary: true` for the handful of overview values (they are polled every 15 s and
      exported to Prometheus); lifetime energy counters in kWh (polled every 60 s);
      serial number and firmware in category device_info.
@@ -926,6 +936,10 @@ Rules that apply throughout:
      decoding (scaling, signs, 32-bit values, enums, invalid values), the MCP tools
      (get_overview, read_values), the REST API and the exported metrics.
    - Run the complete suite with `.venv/bin/pytest`; it must stay green.
+   - If the vendor offers history (a portal CSV export, a log on an SD card), consider an
+     importer in tools/ like import_sungrow_report.py or import_rkm_log.py: verify that
+     its values match the live counters before importing, never write over live series,
+     and only import into Prometheus after checking (imported blocks cannot be removed).
 
 6. Verify against the real device.
    - Run the service locally with my devices.json (read-only, no overrides) for at
