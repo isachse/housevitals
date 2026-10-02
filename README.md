@@ -770,6 +770,21 @@ that adds them: it integrates the recorded values the same way, writes an OpenMe
 file for `promtool tsdb create-blocks-from openmetrics` and the state file the service
 continues from.
 
+### NEO-RKM operating log (micro-SD)
+
+The Brötje NEO-RKM keeps a log on its micro-SD card: one file per day (`YYYYMMDD` in
+a folder per year), with seven lifetime counters every hour (`id;unix_time;value`).
+They are not available over Modbus. Compared with the recorded compressor runs: id
+3375 counts compressor starts, 3171 the operating hours for hot water, 3172 for
+heating, 3173 their sum (whole hours). The meaning of 241, 3188 and 3189 is unknown.
+[tools/import_rkm_log.py](tools/import_rkm_log.py) turns the files into OpenMetrics for
+`promtool` as separate metrics (`housevitals_rkm_compressor_starts_total`,
+`…_rkm_dhw_hours_total`, `…_rkm_heating_hours_total`, `…_rkm_operating_hours_total`,
+unknown ids as `housevitals_rkm_log_value{id}`, all with `source="rkm_sd"`). It
+reports gaps, counter drops and the increase per month. The samples are hourly, so
+query them over windows of at least an hour, e.g. starts per day:
+`max_over_time(x[1d]) - max_over_time(x[1d] offset 1d)`.
+
 - `iwr.json` and `isr.json` are generated from the MIT-licensed
   [ha-broetje](https://github.com/henrywiechert/ha-broetje) Home Assistant integration
   (based on the Brötje GTW-08 spec 7854678 and the
