@@ -3918,7 +3918,7 @@
     {
       "type": "timeseries",
       "title": "Compressor starts per week",
-      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week starting at the bar. Gaps = no log on the card.",
+      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Each step = increase in the week starting at the step. Gaps = no log on the card.",
       "gridPos": {
         "x": 0,
         "y": 81,
@@ -3929,19 +3929,18 @@
         "defaults": {
           "unit": "none",
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineWidth": 2,
-            "lineInterpolation": "smooth",
-            "fillOpacity": 85,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "showPoints": "never",
             "pointSize": 8,
-            "spanNulls": false,
+            "spanNulls": 60000,
             "barAlignment": -1,
             "barWidthFactor": 0.8,
             "axisBorderShow": false,
             "axisPlacement": "auto",
-            "axisSoftMin": 0,
             "stacking": {
               "mode": "none",
               "group": "A"
@@ -4003,7 +4002,6 @@
         }
       },
       "interval": "7d",
-      "timeFrom": "3y",
       "id": 41,
       "datasource": {
         "type": "prometheus",
@@ -4034,12 +4032,13 @@
           "interval": "7d",
           "refId": "B"
         }
-      ]
+      ],
+      "timeFrom": "3y"
     },
     {
       "type": "timeseries",
       "title": "Running hours per week",
-      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week starting at the bar. Gaps = no log on the card.",
+      "description": "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported with tools/import_rkm_log.py; ends with the last import. Each step = increase in the week starting at the step. Gaps = no log on the card.",
       "gridPos": {
         "x": 12,
         "y": 81,
@@ -4050,21 +4049,20 @@
         "defaults": {
           "unit": "suffix: h",
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineWidth": 2,
-            "lineInterpolation": "smooth",
-            "fillOpacity": 85,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "showPoints": "never",
             "pointSize": 8,
-            "spanNulls": false,
+            "spanNulls": 60000,
             "barAlignment": -1,
             "barWidthFactor": 0.8,
             "axisBorderShow": false,
             "axisPlacement": "auto",
-            "axisSoftMin": 0,
             "stacking": {
-              "mode": "normal",
+              "mode": "none",
               "group": "A"
             },
             "thresholdsStyle": {
@@ -4154,7 +4152,6 @@
         }
       },
       "interval": "7d",
-      "timeFrom": "3y",
       "id": 42,
       "datasource": {
         "type": "prometheus",
@@ -4209,7 +4206,8 @@
           "interval": "7d",
           "refId": "D"
         }
-      ]
+      ],
+      "timeFrom": "3y"
     },
     {
       "type": "row",
