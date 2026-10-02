@@ -579,7 +579,8 @@ create-blocks-from openmetrics`, so history continues under the new names. The o
 
 ### Running on macOS (launchd + Homebrew Prometheus)
 
-Prometheus 3 with OTLP receiver, 10 years retention (capped at 20 GB):
+Prometheus 3 with OTLP receiver, 10 years retention (capped at 25 GB; Prometheus counts
+GB as GiB, so the limit is 26.8 GB):
 
 ```bash
 brew install prometheus
@@ -593,7 +594,7 @@ brew install prometheus
 --storage.tsdb.path /opt/homebrew/var/prometheus
 --web.enable-otlp-receiver
 --storage.tsdb.retention.time=10y
---storage.tsdb.retention.size=20GB
+--storage.tsdb.retention.size=25GB
 --query.lookback-delta=1m
 ```
 
@@ -608,7 +609,7 @@ attributes to labels (see [One data point, several series](#one-data-point-sever
 Prometheus' scrape of itself keeps only the storage metrics the "Data retention"
 dashboard row needs, every 30 s. Unfiltered, its ~1000 internal series every 15 s
 took about 90 % of the storage (6 million samples a day instead of about 0.55
-million) and would have filled the 20 GB limit after about 4 years, so data would
+million) and would have filled the then 20 GB limit after about 4 years, so data would
 have been deleted long before 10 years. Start it:
 
 ```bash
