@@ -10,7 +10,9 @@ past `calibration_days` and the next two days from Open-Meteo, and
   hour early, average out; it absorbs shading, soiling and inverter losses),
 * builds a house load profile: mean load per quarter hour of the day,
 * simulates the battery through today and tomorrow (PV - load, charge and discharge
-  limits) and reports surplus windows: periods with expected export to the grid.
+  limits) and reports surplus windows: periods with expected export to the grid,
+* reports the weather itself: temperature, cloud cover, rain, snow and the
+  precipitation probability.
 
 The latest forecast is kept in memory; if Open-Meteo is unreachable, the previous one
 stays in use (marked stale). Measurements come from Prometheus through a small
@@ -38,6 +40,16 @@ from .solar import dc_power, plane_irradiance, sun_position
 _LOGGER = logging.getLogger(__name__)
 
 STEP_S = 900  # Open-Meteo minutely_15: values are means of the preceding 15 minutes
+
+# WMO weather codes (Open-Meteo "weather_code") -> condition
+CONDITIONS = [(0, "clear"), (3, "cloudy"), (48, "fog"), (57, "drizzle"), (67, "rain"),
+              (77, "snow"), (82, "rain showers"), (86, "snow showers"), (99, "thunderstorm")]
+
+
+def condition(code: int | None) -> str | None:
+    if code is None:
+        return None
+    return next((name for limit, name in CONDITIONS if code <= limit), "unknown")
 DEFAULT_PERFORMANCE_RATIO = 0.85
 MIN_CALIBRATION_KWH = 2.0  # modelled energy needed before a calibration is trusted
 DEFAULT_LOAD_W = 500.0
@@ -59,8 +71,13 @@ class WeatherPoint:
     ghi: float
     dni: float
     dhi: float
-    temperature: float | None
+    temperature: float | None  # °C at the end of the interval
     cloud_cover: float | None
+    precipitation: float | None = None  # mm in the interval (rain, showers and melted snow)
+    rain: float | None = None  # mm, rain and showers
+    snowfall: float | None = None  # cm
+    weather_code: int | None = None  # WMO code
+    precipitation_probability: float | None = None  # % for the hour containing the interval
 
 
 @dataclass
@@ -80,7 +97,9 @@ class Measurements(Protocol):
 
 
 class OpenMeteo:
-    VARIABLES = "shortwave_radiation,direct_normal_irradiance,diffuse_radiation,temperature_2m,cloud_cover"
+    VARIABLES = ("shortwave_radiation,direct_normal_irradiance,diffuse_radiation,temperature_2m,cloud_cover,"
+                 "precipitation,rain,showers,snowfall,weather_code")
+    HOURLY = "precipitation_probability"  # not available per 15 minutes
 
     def __init__(self, config: ForecastConfig, transport: httpx.AsyncBaseTransport | None = None):
         self.config = config
@@ -88,7 +107,7 @@ class OpenMeteo:
 
     async def fetch(self, past_days: int, forecast_days: int = 2) -> list[WeatherPoint]:
         params = {"latitude": self.config.latitude, "longitude": self.config.longitude,
-                  "minutely_15": self.VARIABLES, "past_days": past_days,
+                  "minutely_15": self.VARIABLES, "hourly": self.HOURLY, "past_days": past_days,
                   "forecast_days": forecast_days, "timezone": "UTC"}
         async with httpx.AsyncClient(timeout=TIMEOUT, transport=self._transport) as client:
             resp = await client.get(self.config.open_meteo_url, params=params)
@@ -96,16 +115,32 @@ class OpenMeteo:
         if resp.status_code != 200 or body.get("error"):
             raise UnavailableError(f"Open-Meteo: {body.get('reason', resp.status_code)}")
         m = body["minutely_15"]
+        hourly = body.get("hourly") or {}
+        # probability of the preceding hour, keyed by the hour's end
+        probability = dict(zip((_utc(t) for t in hourly.get("time", [])),
+                               hourly.get("precipitation_probability", [])))
+        column = lambda name, i: m[name][i] if name in m else None  # noqa: E731
+
+        def liquid(i: int) -> float | None:  # rain + showers
+            parts = [column("rain", i), column("showers", i)]
+            return None if parts[0] is None else sum(v or 0.0 for v in parts)
         points = []
         for i, t in enumerate(m["time"]):
             ghi = m["shortwave_radiation"][i]
             if ghi is None:
                 continue
-            end = datetime.fromisoformat(t).replace(tzinfo=ZoneInfo("UTC")).timestamp()
+            end = _utc(t)
+            code = column("weather_code", i)
             points.append(WeatherPoint(end, ghi, m["direct_normal_irradiance"][i] or 0.0,
                                        m["diffuse_radiation"][i] or 0.0, m["temperature_2m"][i],
-                                       m["cloud_cover"][i]))
+                                       m["cloud_cover"][i], column("precipitation", i), liquid(i),
+                                       column("snowfall", i), None if code is None else int(code),
+                                       probability.get(math.ceil(end / 3600) * 3600)))
         return points
+
+
+def _utc(t: str) -> float:
+    return datetime.fromisoformat(t).replace(tzinfo=ZoneInfo("UTC")).timestamp()
 
 
 @dataclass
@@ -124,7 +159,7 @@ class ForecastService:
         self.config = config
         self.measurements = measurements
         self.tz = ZoneInfo(timezone)
-        self.weather = weather or OpenMeteo(config)
+        self.source = weather or OpenMeteo(config)
         self.state = _State()
         self._task: asyncio.Task | None = None
 
@@ -135,7 +170,7 @@ class ForecastService:
     async def refresh(self) -> None:
         """Fetch the weather, recalibrate and rebuild the load profile."""
         try:
-            weather = await self.weather.fetch(self.config.calibration_days)
+            weather = await self.source.fetch(self.config.calibration_days)
         except (httpx.HTTPError, UnavailableError, ValueError, KeyError) as err:
             message = str(err) or type(err).__name__
             if self.state.last_error != message:
@@ -260,6 +295,28 @@ class ForecastService:
         point = next((p for p in self.state.weather if p.end > now), None)
         return self.pv_power(point) if point is not None and point.end - now <= STEP_S else None
 
+    def current_weather(self) -> dict[str, float] | None:
+        """Forecast temperature now (interpolated), precipitation in mm/h and snowfall in cm/h
+        of the running quarter hour."""
+        now = self.now()
+        weather = self.state.weather
+        i = next((i for i, p in enumerate(weather) if p.end > now), None)
+        if i is None or weather[i].end - now > STEP_S:
+            return None
+        point = weather[i]
+        out: dict[str, float] = {}
+        before = weather[i - 1] if i > 0 and point.end - weather[i - 1].end == STEP_S else None
+        if point.temperature is not None:
+            out["temperature"] = point.temperature
+            if before is not None and before.temperature is not None:
+                f = (now - before.end) / STEP_S
+                out["temperature"] = before.temperature + f * (point.temperature - before.temperature)
+        if point.precipitation is not None:
+            out["precipitation"] = point.precipitation * 3600 / STEP_S
+        if point.snowfall is not None:
+            out["snowfall"] = point.snowfall * 3600 / STEP_S
+        return out
+
     def day_energy(self) -> dict[str, float]:
         """Forecast PV energy in kWh for "today" and "tomorrow" (whole days)."""
         out = {}
@@ -322,6 +379,59 @@ class ForecastService:
                 "note": "power is the mean over each interval (start given; ts = unix seconds), in W; "
                         "performance ratios are calibrated against the measured array power",
                 "intervals": intervals}
+
+    async def weather(self, day: str = "", resolution: str = "1h") -> dict[str, Any]:
+        """Temperature, clouds, rain and snow per interval; extremes and sums per day."""
+        await self.ensure()
+        _step_seconds(resolution)  # validate
+        out_days, rows = {}, []
+        by_end = {p.end: p for p in self.state.weather}
+        for d in self._select_days(day):
+            start, end = self._day_bounds(d)
+            points = [p for p in self.state.weather if start < p.end <= end]
+            for p in points:
+                previous = by_end.get(p.end - STEP_S)
+                temps = [t for t in (p.temperature, previous.temperature if previous else None) if t is not None]
+                rows.append({"end": p.end, "temperature": sum(temps) / len(temps) if temps else None,
+                             "point": p})
+            temps = [p.temperature for p in points if p.temperature is not None]
+            out_days[d.isoformat()] = {
+                "temperature_min_c": min(temps, default=None), "temperature_max_c": max(temps, default=None),
+                "precipitation_mm": _sum(p.precipitation for p in points),
+                "snowfall_cm": _sum(p.snowfall for p in points),
+                "precipitation_probability_max": _max(p.precipitation_probability for p in points),
+            }
+        return {"source": "Open-Meteo", **{k: v for k, v in self.status().items() if k != "arrays"},
+                "days": out_days, "resolution": resolution,
+                "note": "per interval (start given; ts = unix seconds): mean temperature, mean cloud cover, "
+                        "precipitation in mm = rain (incl. showers) + snow (as water), snowfall in cm of fresh snow, "
+                        "precipitation probability of the hour in %; condition from the WMO weather code",
+                "intervals": self._weather_rows(rows, resolution)}
+
+    def _weather_rows(self, rows: list[dict], resolution: str) -> list[dict]:
+        step = _step_seconds(resolution)
+        buckets: dict[float, list[dict]] = {}
+        for r in rows:
+            start = r["end"] - STEP_S
+            buckets.setdefault(start - (start % step if step > STEP_S else 0), []).append(r)
+        out = []
+        for start, items in sorted(buckets.items()):
+            points = [r["point"] for r in items]
+            temps = [r["temperature"] for r in items if r["temperature"] is not None]
+            clouds = [p.cloud_cover for p in points if p.cloud_cover is not None]
+            code = _max(p.weather_code for p in points)  # higher codes are the more severe weather
+            out.append({
+                "start": self._iso(start), "ts": int(start),
+                "temperature_c": round(sum(temps) / len(temps), 1) if temps else None,
+                "cloud_cover": round(sum(clouds) / len(clouds)) if clouds else None,
+                "precipitation_mm": _sum(p.precipitation for p in points),
+                "rain_mm": _sum(p.rain for p in points),
+                "snow_mm": _sum(_snow_water(p) for p in points),
+                "snowfall_cm": _sum(p.snowfall for p in points),
+                "precipitation_probability": _max(p.precipitation_probability for p in points),
+                "weather_code": code, "condition": condition(code),
+            })
+        return out
 
     async def surplus(self, threshold_w: float | None = None, resolution: str = "") -> dict[str, Any]:
         """Simulate the battery from now to the end of tomorrow; windows of grid export."""
@@ -452,6 +562,24 @@ class ForecastService:
         if soc is None or not capacity:
             return 0.0, 0.0
         return float(soc), float(capacity)
+
+
+def _snow_water(p: WeatherPoint) -> float | None:
+    """Snow as water in mm: the part of the precipitation that is not rain."""
+    if p.precipitation is None or p.rain is None:
+        return None
+    if not p.snowfall:
+        return 0.0  # the rest is rounding (values come in steps of 0.1 mm)
+    return max(0.0, p.precipitation - p.rain)
+
+
+def _sum(values) -> float | None:
+    values = [v for v in values if v is not None]
+    return round(sum(values), 2) if values else None
+
+
+def _max(values):
+    return max((v for v in values if v is not None), default=None)
 
 
 def _step_seconds(resolution: str) -> int:

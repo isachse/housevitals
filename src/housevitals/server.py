@@ -89,8 +89,9 @@ def _instructions(services: Services) -> str:
         text += (
             " Forecasts (Open-Meteo weather, calibrated against the recorded PV power): "
             "get_pv_forecast (PV energy today/tomorrow and power per hour or quarter hour, "
-            "per array) and get_surplus_windows (battery simulation: when the battery will be "
-            "full and when surplus is expected to be exported, with energy and power). "
+            "per array), get_surplus_windows (battery simulation: when the battery will be "
+            "full and when surplus is expected to be exported, with energy and power) and "
+            "get_weather_forecast (temperature, rain, snow, precipitation probability). "
             "Forecasts are estimates; say so and give the issue time when it matters."
         )
     return text
@@ -333,6 +334,19 @@ def _forecast_tools(tool, services: Services) -> None:
             resolution: 1h or 15m.
         """
         return await forecast.pv_forecast(day, resolution)
+
+    @tool
+    @_reports_errors
+    async def get_weather_forecast(day: DayArg = "", resolution: ResolutionArg = "1h") -> dict[str, Any]:
+        """Weather forecast from Open-Meteo for the house's location: temperature, cloud cover,
+        rain (mm), snowfall (cm), precipitation probability (%) and a condition per hour or
+        quarter hour; minimum/maximum temperature and precipitation per day.
+
+        Args:
+            day: today, tomorrow or an ISO date; empty for both days.
+            resolution: 1h or 15m.
+        """
+        return await forecast.weather(day, resolution)
 
     @tool
     @_reports_errors

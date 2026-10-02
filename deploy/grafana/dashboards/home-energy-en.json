@@ -41,7 +41,7 @@
       "targetBlank": true
     },
     {
-      "title": "PV forecast",
+      "title": "Forecast",
       "type": "link",
       "url": "/d/pv-forecast-en",
       "targetBlank": false
@@ -3003,7 +3003,7 @@
     {
       "type": "timeseries",
       "title": "Outdoor temperature",
-      "description": "",
+      "description": "Dashed: air temperature from the weather forecast (Open-Meteo, 2 m).",
       "gridPos": {
         "x": 12,
         "y": 50,
@@ -3069,6 +3069,31 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Open-Meteo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6e6d68"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    6
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -3114,6 +3139,17 @@
           "range": true,
           "instant": false,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (array, day) (housevitals_forecast_temperature_celsius{})",
+          "legendFormat": "Open-Meteo",
+          "range": true,
+          "instant": false,
+          "refId": "C"
         }
       ]
     },

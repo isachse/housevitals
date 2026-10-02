@@ -273,6 +273,14 @@ def _forecast_routes(router: APIRouter, services: Services) -> None:
         """PV energy per day and mean power per interval, per array (Open-Meteo, calibrated)."""
         return await forecast.pv_forecast(day, resolution)
 
+    @router.get("/forecast/weather", tags=["forecast"])
+    async def weather_forecast(
+        day: str = Query("", description="today, tomorrow or an ISO date; empty = both"),
+        resolution: str = Query("1h", pattern="^(1h|15m)$"),
+    ) -> dict[str, Any]:
+        """Temperature, cloud cover, rain, snow and precipitation probability (Open-Meteo)."""
+        return await forecast.weather(day, resolution)
+
     @router.get("/forecast/surplus", tags=["forecast"])
     async def surplus(
         threshold_w: float = Query(0, ge=0, description="Minimum export for a window; 0 = configured"),

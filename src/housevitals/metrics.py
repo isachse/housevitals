@@ -209,7 +209,14 @@ def register_instruments(meter: Meter, hub: Hub, overrides: OverrideManager | No
             f"{PREFIX}.forecast.age", [lambda o: _forecast_age(forecast)], unit="s",
             description="Age of the weather forecast in use",
         )
-        names += [f"{PREFIX}.forecast.{n}" for n in ("pv.power", "pv.energy", "performance_ratio", "age")]
+        for key, unit, text in (("temperature", "Cel", "Forecast air temperature now (2 m)"),
+                                ("precipitation", "mm/h", "Forecast precipitation of the running quarter hour"),
+                                ("snowfall", "cm/h", "Forecast snowfall of the running quarter hour")):
+            meter.create_observable_gauge(
+                f"{PREFIX}.forecast.{key}", [lambda o, key=key: _forecast_weather(forecast, key)],
+                unit=unit, description=text)
+        names += [f"{PREFIX}.forecast.{n}" for n in ("pv.power", "pv.energy", "performance_ratio", "age",
+                                                      "temperature", "precipitation", "snowfall")]
     return names
 
 
@@ -224,6 +231,12 @@ def _forecast_energy(forecast) -> Iterable[Observation]:
     if forecast.state.weather:
         for day, kwh in forecast.day_energy().items():
             yield Observation(kwh, {"day": day})
+
+
+def _forecast_weather(forecast, key: str) -> Iterable[Observation]:
+    value = (forecast.current_weather() or {}).get(key)
+    if value is not None:
+        yield Observation(value, {})
 
 
 def _forecast_ratio(forecast) -> Iterable[Observation]:

@@ -355,16 +355,24 @@ battery is export; windows of export above `surplus_threshold_w` are reported.
 
 | Interface | |
 |-----------|---|
-| MCP | `get_pv_forecast` (energy per day and power per hour or quarter hour, per array), `get_surplus_windows` (battery full time, windows, energy per day, optionally the simulated course) |
-| REST | `GET /api/v1/forecast` (status, calibrated arrays), `/api/v1/forecast/pv?day=&resolution=1h\|15m`, `/api/v1/forecast/surplus?threshold_w=&resolution=` |
-| Metrics | `housevitals_forecast_pv_power_watts{array}` (forecast for the running quarter hour, per array and `total`), `housevitals_forecast_pv_energy_kWh{day="today"\|"tomorrow"}`, `housevitals_forecast_performance_ratio{array}`, `housevitals_forecast_age_seconds` |
+| MCP | `get_pv_forecast` (energy per day and power per hour or quarter hour, per array), `get_surplus_windows` (battery full time, windows, energy per day, optionally the simulated course), `get_weather_forecast` (temperature, cloud cover, rain, snow, precipitation probability, condition) |
+| REST | `GET /api/v1/forecast` (status, calibrated arrays), `/api/v1/forecast/pv?day=&resolution=1h\|15m`, `/api/v1/forecast/surplus?threshold_w=&resolution=`, `/api/v1/forecast/weather?day=&resolution=` |
+| Metrics | `housevitals_forecast_pv_power_watts{array}` (forecast for the running quarter hour, per array and `total`), `housevitals_forecast_pv_energy_kWh{day="today"\|"tomorrow"}`, `housevitals_forecast_performance_ratio{array}`, `housevitals_forecast_age_seconds`, `housevitals_forecast_temperature_celsius` (now, interpolated), `housevitals_forecast_precipitation_mm_per_hour`, `housevitals_forecast_snowfall_cm_per_hour` |
 | Charts | `pv_forecast`: today and tomorrow with measured and forecast PV, expected load, surplus windows and state of charge (see [Charts](#charts)) |
-| Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart; dashboard **PV-Prognose** / **PV forecast** for today and tomorrow (see [Grafana dashboard](#grafana-dashboard)) |
+| Grafana | Row "Prognose · PV" (today, tomorrow, performance ratio per array); forecast PV power as a dashed line in the power chart; dashboard **Prognose** / **Forecast** for today and tomorrow (see [Grafana dashboard](#grafana-dashboard)) |
 
 If Open-Meteo is unreachable, the previous forecast stays in use and is marked
 `stale` with `last_error`; without any forecast yet the endpoints return `503`.
 Forecasts are estimates: timing and strength of clouds are the main uncertainty.
 Open-Meteo's free API is for non-commercial use; see its terms.
+
+**Weather.** The same request brings temperature, cloud cover, precipitation, rain and
+showers, snowfall and the WMO weather code per quarter hour, plus the hourly
+precipitation probability. `/forecast/weather` reports per interval the mean
+temperature, rain and snow (as water) in mm, fresh snow in cm, the probability and a
+condition (clear, cloudy, fog, drizzle, rain, snow, showers, thunderstorm); per day the
+temperature range and the sums. Recording the forecast temperature as a metric lets
+Grafana compare it with the heat pumps' outdoor sensors.
 
 ### Charts
 
@@ -402,7 +410,7 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /api/v1/energy?period=day&start=…&appliance=…` | Energy per calendar period |
 | `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
 | `GET /api/v1/charts` | Chart catalog and cached images |
-| `GET /api/v1/forecast`, `/forecast/pv`, `/forecast/surplus` | PV forecast and surplus windows |
+| `GET /api/v1/forecast`, `/forecast/pv`, `/forecast/surplus`, `/forecast/weather` | PV forecast, surplus windows and weather |
 | `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
 | `GET /api/v1/overrides` | Active overrides and what may be overridden (all appliances) |
 | `GET /api/v1/appliances/{name}/overrides` | The same for one appliance |
@@ -633,7 +641,7 @@ Settings changed in `/opt/homebrew/etc/grafana/grafana.ini`:
 | `[auth.anonymous]` | `enabled = true` (read-only viewer without login for everyone who can reach Grafana) |
 | `[analytics]`, `[news]` | usage reporting, update checks and news feed off |
 
-The PV forecast dashboard reads forecasts from the REST API (Prometheus holds no
+The forecast dashboard reads forecasts from the REST API (Prometheus holds no
 future values) through the Infinity data-source plugin; its data source is provisioned
 in [housevitals-api.yaml](deploy/grafana/provisioning/datasources/housevitals-api.yaml)
 (REST API on `127.0.0.1:8080`; adjust `url`s in the generator and `allowedHosts` if it differs):
@@ -651,7 +659,7 @@ registered", restart Grafana once.
 
 The dashboards **Haus · Energie & Wärmepumpen** (German, home dashboard) and **Home ·
 Energy & heat pumps** (English, `home-energy-en`) are generated and link to each other,
-as do **Haus · PV-Prognose** (`pv-forecast`) and **Home · PV forecast** (`pv-forecast-en`).
+as do **Haus · Prognose** (`pv-forecast`) and **Home · Forecast** (`pv-forecast-en`).
 The German one is the source; the English one replaces only display texts via the
 table `TRANSLATIONS` (the generator fails on any untranslated text). Edit
 [tools/build_grafana_dashboard.py](tools/build_grafana_dashboard.py), then:
@@ -667,9 +675,9 @@ Grafana picks up the new JSON within 30 seconds. Layout (English section names; 
 | Now · PV system & battery | PV, house load, battery, state of charge, grid, self-sufficiency today, today's energy, reachability |
 | Now · heat pumps | outdoor, flow and hot-water temperature, power draw, compressor, lifetime SPF |
 | History · energy flow | power flow (PV/house/battery/grid), state of charge, energy per day |
-| History · heat pumps | flow/return, hot water vs. setpoint, power, outdoor temperature, compressor and demand timelines, SPF and heat per day |
+| History · heat pumps | flow/return, hot water vs. setpoint, power, outdoor temperature (with the Open-Meteo forecast dashed), compressor and demand timelines, SPF and heat per day |
 | Details (collapsed) | PV strings, grid per phase, temperatures, refrigerant circuit, heat source, buffer, service health |
-| PV forecast (own dashboard) | today 00:00 to tomorrow 24:00: forecast today/tomorrow, generation today, state of charge; measured and forecast PV (dashed), expected load, surplus as a green area, state of charge measured and forecast (right axis) |
+| Forecast (own dashboard) | today 00:00 to tomorrow 24:00: forecast today/tomorrow, generation today, state of charge; measured and forecast PV (dashed), expected load, surplus as a green area, state of charge measured and forecast (right axis); outdoor temperature of both heat pumps vs. Open-Meteo; rain and snow per hour (stacked bars) with the precipitation probability; outdoor sensor minus forecast over the last 7 days |
 
 "Now" tiles show the current value (only while the appliance answers), daily bars always the last 30 days; all other
 charts follow the selected time range. Each appliance and energy flow keeps one fixed
@@ -686,7 +694,7 @@ grid orange). Dashed lines mark return temperature, setpoints and low pressure.
 | `list_registers` | Discover data points by category or search term (no device access) |
 | `read_values` | Read data points by key, category or search term |
 | `read_raw_registers` | Raw holding/input register words for diagnostics |
-| `get_pv_forecast`, `get_surplus_windows` | PV forecast and surplus windows (with a `forecast` section; see [PV forecast](#pv-forecast-and-surplus-windows)) |
+| `get_pv_forecast`, `get_surplus_windows`, `get_weather_forecast` | PV forecast, surplus windows and weather (with a `forecast` section; see [PV forecast](#pv-forecast-and-surplus-windows)) |
 
 Every tool except `list_devices` takes an optional `appliance` argument (name or alias).
 It can be omitted when only one appliance is configured or `default_device` is set.
