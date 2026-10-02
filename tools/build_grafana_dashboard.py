@@ -87,9 +87,16 @@ BYTES_PER_SAMPLE = 2.2
 TEN_YEARS_S = 3650 * 86400
 
 RKM_NOTE = ("Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), "
-            "importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der "
-            "Woche, beginnend am Balken. Lücken = kein Log auf der Karte.")
+            "importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Jede Stufe = Zuwachs der "
+            "Woche ab der Stufe. Lücken = kein Log auf der Karte.")
 DHW_COLOR = {"WP1": VIOLET, "WP2": MAGENTA}
+
+
+def weekly_steps(panel: dict) -> None:
+    """A value per week, held for the week: step lines, so several series (heat pumps,
+    energy flows) stay visible instead of bars hiding each other in the same week."""
+    panel["fieldConfig"]["defaults"]["custom"].update(lineInterpolation="stepAfter", fillOpacity=10)
+    panel["options"]["legend"]["calcs"] = ["sum"]
 
 
 def weekly_counter(sel: str) -> str:
@@ -473,16 +480,14 @@ def build() -> dict:
                     "und Maximum je Woche ab dem Punkt.",
         overrides=[override("Wochenmittel", ORANGE), override("Minimum", BLUE, dashed=True),
                    override("Maximum", MAGENTA, dashed=True)])
-    # a value per week, held for the week (lines, so the three series do not hide each other)
-    energy["fieldConfig"]["defaults"]["custom"].update(lineInterpolation="stepAfter", fillOpacity=10)
-    energy["options"]["legend"]["calcs"] = ["sum"]
+    weekly_steps(energy)
     for panel in (energy, temperature):
         panel["timeFrom"] = "3y"
     panels += [energy, temperature]
     y += 9
     t = [target(weekly_increase("compressor_starts", a), s, interval="7d") for a, s, _ in HEAT_PUMPS]
     starts = timeseries(
-        "Verdichterstarts pro Woche", t, g(0, y, 12, 9), "none", bars=True, decimals=0, interval="7d",
+        "Verdichterstarts pro Woche", t, g(0, y, 12, 9), "none", decimals=0, interval="7d",
         description=RKM_NOTE, overrides=[override(s, c) for _, s, c in HEAT_PUMPS])
     t, o = [], []
     for a, s, c in HEAT_PUMPS:
@@ -490,10 +495,11 @@ def build() -> dict:
             t.append(target(weekly_increase(counter, a), f"{s} {part}", interval="7d"))
             o.append(override(f"{s} {part}", color))
     hours = timeseries(
-        "Laufzeit pro Woche", t, g(12, y, 12, 9), "suffix: h", bars=True, decimals=0, interval="7d", stack=True,
+        "Laufzeit pro Woche", t, g(12, y, 12, 9), "suffix: h", decimals=0, interval="7d",
         description=RKM_NOTE, overrides=o)
     for panel in (starts, hours):
-        panel["timeFrom"] = "3y"  # the log reaches back years; bars sit at the start of their week
+        weekly_steps(panel)
+        panel["timeFrom"] = "3y"  # the log reaches back years
     panels += [starts, hours]
     y += 9
 
@@ -800,8 +806,8 @@ TRANSLATIONS = {
             "maximum per week from the point.",
         "Verdichterstarts pro Woche": "Compressor starts per week", "Heizung": "Heating", "Laufzeit pro Woche": "Running hours per week",
         RKM_NOTE: "From the operating log on the NEO-RKM's SD card (not available over Modbus), imported "
-                  "with tools/import_rkm_log.py; ends with the last import. Bars = increase in the week "
-                  "starting at the bar. Gaps = no log on the card.",
+                  "with tools/import_rkm_log.py; ends with the last import. Each step = increase in the week "
+                  "starting at the step. Gaps = no log on the card.",
         "PV-Leistung je String": "PV power per string", "Netzleistung je Phase": "Grid power per phase",
         "Netzspannung je Phase": "Grid voltage per phase",
         "Temperaturen Wechselrichter & Batterie": "Inverter & battery temperatures",

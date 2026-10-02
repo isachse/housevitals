@@ -3917,7 +3917,7 @@
     {
       "type": "timeseries",
       "title": "Verdichterstarts pro Woche",
-      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
+      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Jede Stufe = Zuwachs der Woche ab der Stufe. Lücken = kein Log auf der Karte.",
       "gridPos": {
         "x": 0,
         "y": 81,
@@ -3928,19 +3928,18 @@
         "defaults": {
           "unit": "none",
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineWidth": 2,
-            "lineInterpolation": "smooth",
-            "fillOpacity": 85,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "showPoints": "never",
             "pointSize": 8,
-            "spanNulls": false,
+            "spanNulls": 60000,
             "barAlignment": -1,
             "barWidthFactor": 0.8,
             "axisBorderShow": false,
             "axisPlacement": "auto",
-            "axisSoftMin": 0,
             "stacking": {
               "mode": "none",
               "group": "A"
@@ -4002,7 +4001,6 @@
         }
       },
       "interval": "7d",
-      "timeFrom": "3y",
       "id": 41,
       "datasource": {
         "type": "prometheus",
@@ -4033,12 +4031,13 @@
           "interval": "7d",
           "refId": "B"
         }
-      ]
+      ],
+      "timeFrom": "3y"
     },
     {
       "type": "timeseries",
       "title": "Laufzeit pro Woche",
-      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der Woche, beginnend am Balken. Lücken = kein Log auf der Karte.",
+      "description": "Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Jede Stufe = Zuwachs der Woche ab der Stufe. Lücken = kein Log auf der Karte.",
       "gridPos": {
         "x": 12,
         "y": 81,
@@ -4049,21 +4048,20 @@
         "defaults": {
           "unit": "suffix: h",
           "custom": {
-            "drawStyle": "bars",
+            "drawStyle": "line",
             "lineWidth": 2,
-            "lineInterpolation": "smooth",
-            "fillOpacity": 85,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 10,
             "gradientMode": "none",
             "showPoints": "never",
             "pointSize": 8,
-            "spanNulls": false,
+            "spanNulls": 60000,
             "barAlignment": -1,
             "barWidthFactor": 0.8,
             "axisBorderShow": false,
             "axisPlacement": "auto",
-            "axisSoftMin": 0,
             "stacking": {
-              "mode": "normal",
+              "mode": "none",
               "group": "A"
             },
             "thresholdsStyle": {
@@ -4153,7 +4151,6 @@
         }
       },
       "interval": "7d",
-      "timeFrom": "3y",
       "id": 42,
       "datasource": {
         "type": "prometheus",
@@ -4208,7 +4205,8 @@
           "interval": "7d",
           "refId": "D"
         }
-      ]
+      ],
+      "timeFrom": "3y"
     },
     {
       "type": "row",
