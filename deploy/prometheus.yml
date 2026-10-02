@@ -1,0 +1,28 @@
+# Prometheus for housevitals (copy to /opt/homebrew/etc/prometheus.yml; see README,
+# "Running on macOS"). Retention is set in prometheus.args: 10 years, capped by size.
+global:
+  scrape_interval: 15s
+
+# Metrics are pushed via OTLP (housevitals service -> /api/v1/otlp/v1/metrics).
+# No resource attributes are promoted to labels: a label that changes (e.g. the
+# version on every update) would start new series for every metric. They remain
+# available in target_info.
+
+storage:
+  tsdb:
+    # Accept slightly delayed OTLP pushes (e.g. after a service restart).
+    out_of_order_time_window: 30m
+
+scrape_configs:
+  # Prometheus' own metrics: only what the "data retention" dashboard row needs, every
+  # 30 s (twice within the 1-minute lookback, so queries always find a value).
+  # Unfiltered, its ~1000 internal series every 15 s would take about 90 % of the
+  # storage and fill the size limit years before the 10-year retention.
+  - job_name: "prometheus"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["localhost:9090"]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "up|prometheus_build_info|prometheus_tsdb_(storage_blocks_bytes|wal_storage_size_bytes|head_chunks_storage_size_bytes|retention_limit_bytes|retention_limit_seconds|lowest_timestamp_seconds|size_retentions_total|time_retentions_total|head_samples_appended_total|blocks_loaded)"
+        action: keep

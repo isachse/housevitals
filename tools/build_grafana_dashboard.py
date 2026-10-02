@@ -82,6 +82,10 @@ def daily_energy(counter: str, appliance: str) -> str:
             f" - max by (appliance) (max_over_time({sel}[1d]))")
 
 
+# Measured on this installation (blocks of live data); used to project the space for 10 years.
+BYTES_PER_SAMPLE = 2.2
+TEN_YEARS_S = 3650 * 86400
+
 RKM_NOTE = ("Aus dem Betriebslog auf der SD-Karte des NEO-RKM (nicht über Modbus verfügbar), "
             "importiert mit tools/import_rkm_log.py; endet mit dem letzten Import. Balken = Zuwachs der "
             "Woche, beginnend am Balken. Lücken = kein Log auf der Karte.")
@@ -493,6 +497,43 @@ def build() -> dict:
     panels += [starts, hours]
     y += 9
 
+    # ---- Datenhaltung: does the size limit hold 10 years of data? (Prometheus' own metrics)
+    panels.append(row("Datenhaltung · Prometheus", y)); y += 1
+    used = ("prometheus_tsdb_storage_blocks_bytes + prometheus_tsdb_wal_storage_size_bytes"
+            " + prometheus_tsdb_head_chunks_storage_size_bytes")
+    # sum(): the counter is split by a `type` label (float / histogram)
+    per_10y = (f"sum(rate(prometheus_tsdb_head_samples_appended_total[1h])) * 86400 * 3650 * {BYTES_PER_SAMPLE}"
+               " / sum(prometheus_tsdb_retention_limit_bytes)")
+    level = {"mode": "absolute", "steps": [{"color": GOOD, "value": None}, {"color": WARNING, "value": 0.8},
+                                           {"color": CRITICAL, "value": 1}]}
+    panels += [
+        stat("Belegter Speicher", [target(used, "belegt")], g(0, y, 4, 4), "bytes", decimals=1,
+             only_when_up=False, description="Blöcke, Write-Ahead-Log und Head von Prometheus."),
+        stat("Größenlimit", [target("prometheus_tsdb_retention_limit_bytes", "Limit")], g(4, y, 4, 4),
+             "bytes", decimals=0, only_when_up=False,
+             description="--storage.tsdb.retention.size: ist es erreicht, löscht Prometheus die ältesten Daten."),
+        stat("Platzbedarf für 10 Jahre", [target(per_10y, "Bedarf")], g(8, y, 4, 4), "percentunit",
+             decimals=0, only_when_up=False, color_mode="background", thresholds=level,
+             description=f"Aktuelle Aufnahme (Messwerte pro Stunde) hochgerechnet auf 10 Jahre, "
+                         f"bei gemessen etwa {BYTES_PER_SAMPLE} Byte je Messwert, im Verhältnis zum "
+                         f"Größenlimit. Unter 100 %: 10 Jahre passen hinein. Darüber werden Daten "
+                         f"gelöscht, bevor sie 10 Jahre alt sind."),
+        stat("Zeitlimit", [target("prometheus_tsdb_retention_limit_seconds", "Zeit")], g(12, y, 4, 4), "s",
+             decimals=1, only_when_up=False, color_mode="background",
+             thresholds={"mode": "absolute", "steps": [{"color": CRITICAL, "value": None},
+                                                         {"color": GOOD, "value": TEN_YEARS_S}]},
+             description="--storage.tsdb.retention.time: Daten älter als das werden gelöscht."),
+        stat("Ältester Datenpunkt", [target("prometheus_tsdb_lowest_timestamp_seconds * 1000", "ab")],
+             g(16, y, 4, 4), "dateTimeAsLocal", only_when_up=False,
+             description="Beginn der gespeicherten Daten (einschließlich der importierten Historie)."),
+        stat("Wegen Größe gelöscht", [target("prometheus_tsdb_size_retentions_total", "Blöcke")],
+             g(20, y, 4, 4), "none", decimals=0, only_when_up=False, color_mode="background",
+             thresholds={"mode": "absolute", "steps": [{"color": GOOD, "value": None},
+                                                         {"color": CRITICAL, "value": 1}]},
+             description="Blöcke, die Prometheus wegen des Größenlimits gelöscht hat. Muss 0 bleiben."),
+    ]
+    y += 4
+
     # ---- Details (collapsed)
     pv_details = []
     dy = y + 1
@@ -724,6 +765,28 @@ TRANSLATIONS = {
         "Vor- und Rücklauf": "Flow and return", "Arbeitszahl pro Tag": "Performance factor per day",
         "Wärme pro Tag": "Heat per day",
         "Langzeit · Energie, Wärmepumpen, Wetter": "Long term · energy, heat pumps, weather",
+        "Datenhaltung · Prometheus": "Data retention · Prometheus",
+        "Belegter Speicher": "Storage used", "belegt": "used", "Blöcke, Write-Ahead-Log und Head von Prometheus.":
+            "Prometheus blocks, write-ahead log and head.",
+        "Größenlimit": "Size limit", "Limit": "limit",
+        "--storage.tsdb.retention.size: ist es erreicht, löscht Prometheus die ältesten Daten.":
+            "--storage.tsdb.retention.size: when reached, Prometheus deletes the oldest data.",
+        "Platzbedarf für 10 Jahre": "Space needed for 10 years", "Bedarf": "needed",
+        f"Aktuelle Aufnahme (Messwerte pro Stunde) hochgerechnet auf 10 Jahre, bei gemessen etwa "
+        f"{BYTES_PER_SAMPLE} Byte je Messwert, im Verhältnis zum Größenlimit. Unter 100 %: 10 Jahre "
+        f"passen hinein. Darüber werden Daten gelöscht, bevor sie 10 Jahre alt sind.":
+            f"Current intake (samples per hour) projected to 10 years at about {BYTES_PER_SAMPLE} bytes "
+            f"per sample (measured), relative to the size limit. Below 100 %: 10 years fit. Above, data "
+            f"is deleted before it is 10 years old.",
+        "Zeitlimit": "Time limit", "Zeit": "time",
+        "--storage.tsdb.retention.time: Daten älter als das werden gelöscht.":
+            "--storage.tsdb.retention.time: data older than this is deleted.",
+        "Ältester Datenpunkt": "Oldest data", "ab": "from",
+        "Beginn der gespeicherten Daten (einschließlich der importierten Historie).":
+            "Start of the stored data (including imported history).",
+        "Wegen Größe gelöscht": "Deleted for size", "Blöcke": "blocks",
+        "Blöcke, die Prometheus wegen des Größenlimits gelöscht hat. Muss 0 bleiben.":
+            "Blocks Prometheus deleted because of the size limit. Must stay 0.",
         "Energie pro Woche": "Energy per week", "Außentemperatur pro Woche": "Outdoor temperature per week",
         "Wochenmittel": "weekly mean", "Maximum": "maximum",
         "PV-Erzeugung, Einspeisung und Netzbezug je Woche, aus den Gesamtzählern des "
