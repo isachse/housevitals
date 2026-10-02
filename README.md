@@ -597,9 +597,19 @@ brew install prometheus
 --query.lookback-delta=1m
 ```
 
-`/opt/homebrew/etc/prometheus.yml` additionally contains
-`storage.tsdb.out_of_order_time_window: 30m`. It promotes no resource attributes to
-labels (see [One data point, several series](#one-data-point-several-series)). Start it:
+`/opt/homebrew/etc/prometheus.yml` is [deploy/prometheus.yml](deploy/prometheus.yml):
+
+```bash
+cp deploy/prometheus.yml /opt/homebrew/etc/prometheus.yml
+```
+
+It sets `storage.tsdb.out_of_order_time_window: 30m` and promotes no resource
+attributes to labels (see [One data point, several series](#one-data-point-several-series)).
+Prometheus' scrape of itself keeps only the storage metrics the "Data retention"
+dashboard row needs, every 30 s. Unfiltered, its ~1000 internal series every 15 s
+took about 90 % of the storage (6 million samples a day instead of about 0.55
+million) and would have filled the 20 GB limit after about 4 years, so data would
+have been deleted long before 10 years. Start it:
 
 ```bash
 brew services start prometheus
@@ -693,6 +703,7 @@ Grafana picks up the new JSON within 30 seconds. Layout (English section names; 
 | Now · heat pumps | outdoor, flow and hot-water temperature, power draw, compressor, lifetime SPF |
 | History · energy flow | power flow (PV/house/battery/grid), state of charge, energy per day |
 | History · heat pumps | flow/return, hot water vs. setpoint, power, outdoor temperature (with the Open-Meteo forecast dashed), compressor and demand timelines, SPF and heat per day |
+| Data retention · Prometheus | storage used, size limit, space needed for 10 years at the current intake (red above 100 %: data would be deleted before it is 10 years old), time limit, oldest data, blocks deleted for size (must stay 0) |
 | Long term · energy, heat pumps, weather | last 3 years, per week: PV generation, feed-in and grid import (live counters, before recording from the iSolarCloud import); outdoor temperature mean, minimum and maximum (Open-Meteo archive); compressor starts and running hours (heating, hot water) from the imported NEO-RKM SD log, ending with the last import |
 | Details (collapsed) | PV strings, grid per phase, temperatures, refrigerant circuit, heat source, buffer, service health |
 | Forecast (own dashboard) | today 00:00 to tomorrow 24:00: forecast today/tomorrow, generation today, state of charge; measured and forecast PV (dashed), expected load, surplus as a green area, state of charge measured and forecast (right axis); outdoor temperature of both heat pumps vs. Open-Meteo; rain and snow per hour (stacked bars) with the precipitation probability; outdoor sensor minus forecast over the last 7 days |

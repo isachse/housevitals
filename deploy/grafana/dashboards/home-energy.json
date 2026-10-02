@@ -4212,14 +4212,447 @@
     },
     {
       "type": "row",
-      "title": "Details · PV-Anlage",
-      "collapsed": true,
-      "id": 47,
+      "title": "Datenhaltung · Prometheus",
+      "collapsed": false,
+      "id": 43,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 90
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Belegter Speicher",
+      "description": "Blöcke, Write-Ahead-Log und Head von Prometheus.",
+      "gridPos": {
+        "x": 0,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 44,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((prometheus_tsdb_storage_blocks_bytes + prometheus_tsdb_wal_storage_size_bytes + prometheus_tsdb_head_chunks_storage_size_bytes)[3d:1m])",
+          "legendFormat": "belegt",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Größenlimit",
+      "description": "--storage.tsdb.retention.size: ist es erreicht, löscht Prometheus die ältesten Daten.",
+      "gridPos": {
+        "x": 4,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 45,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((prometheus_tsdb_retention_limit_bytes)[3d:1m])",
+          "legendFormat": "Limit",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Platzbedarf für 10 Jahre",
+      "description": "Aktuelle Aufnahme (Messwerte pro Stunde) hochgerechnet auf 10 Jahre, bei gemessen etwa 2.2 Byte je Messwert, im Verhältnis zum Größenlimit. Unter 100 %: 10 Jahre passen hinein. Darüber werden Daten gelöscht, bevor sie 10 Jahre alt sind.",
+      "gridPos": {
+        "x": 8,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 0.8
+              },
+              {
+                "color": "#d03b3b",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 46,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((sum(rate(prometheus_tsdb_head_samples_appended_total[1h])) * 86400 * 3650 * 2.2 / sum(prometheus_tsdb_retention_limit_bytes))[3d:1m])",
+          "legendFormat": "Bedarf",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Zeitlimit",
+      "description": "--storage.tsdb.retention.time: Daten älter als das werden gelöscht.",
+      "gridPos": {
+        "x": 12,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#0ca30c",
+                "value": 315360000
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 47,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((prometheus_tsdb_retention_limit_seconds)[3d:1m])",
+          "legendFormat": "Zeit",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Ältester Datenpunkt",
+      "description": "Beginn der gespeicherten Daten (einschließlich der importierten Historie).",
+      "gridPos": {
+        "x": 16,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsLocal",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#6e6d68"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6e6d68",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 48,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((prometheus_tsdb_lowest_timestamp_seconds * 1000)[3d:1m])",
+          "legendFormat": "ab",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Wegen Größe gelöscht",
+      "description": "Blöcke, die Prometheus wegen des Größenlimits gelöscht hat. Muss 0 bleiben.",
+      "gridPos": {
+        "x": 20,
+        "y": 91,
+        "w": 4,
+        "h": 4
+      },
+      "timeFrom": "1h",
+      "hideTimeOverride": true,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#d03b3b",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 49,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time((prometheus_tsdb_size_retentions_total)[3d:1m])",
+          "legendFormat": "Blöcke",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Details · PV-Anlage",
+      "collapsed": true,
+      "id": 54,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 95
       },
       "panels": [
         {
@@ -4228,7 +4661,7 @@
           "description": "MPPT-Spannung × Strom.",
           "gridPos": {
             "x": 0,
-            "y": 91,
+            "y": 96,
             "w": 12,
             "h": 8
           },
@@ -4323,7 +4756,7 @@
               "sort": "none"
             }
           },
-          "id": 43,
+          "id": 50,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4370,7 +4803,7 @@
           "description": "Positiv = Bezug, negativ = Einspeisung.",
           "gridPos": {
             "x": 12,
-            "y": 91,
+            "y": 96,
             "w": 12,
             "h": 8
           },
@@ -4465,7 +4898,7 @@
               "sort": "none"
             }
           },
-          "id": 44,
+          "id": 51,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4512,7 +4945,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 99,
+            "y": 104,
             "w": 12,
             "h": 8
           },
@@ -4593,7 +5026,7 @@
               "sort": "none"
             }
           },
-          "id": 45,
+          "id": 52,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4629,7 +5062,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 99,
+            "y": 104,
             "w": 12,
             "h": 8
           },
@@ -4724,7 +5157,7 @@
               "sort": "none"
             }
           },
-          "id": 46,
+          "id": 53,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4771,12 +5204,12 @@
       "type": "row",
       "title": "Details · Wärmepumpen",
       "collapsed": true,
-      "id": 52,
+      "id": 59,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 96
       },
       "panels": [
         {
@@ -4785,7 +5218,7 @@
           "description": "Durchgezogen = Hochdruck, gestrichelt = Niederdruck.",
           "gridPos": {
             "x": 0,
-            "y": 92,
+            "y": 97,
             "w": 12,
             "h": 8
           },
@@ -4915,7 +5348,7 @@
               "sort": "none"
             }
           },
-          "id": 48,
+          "id": 55,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -4973,7 +5406,7 @@
           "description": "Durchgezogen = Kondensation, gestrichelt = Verdampfung.",
           "gridPos": {
             "x": 12,
-            "y": 92,
+            "y": 97,
             "w": 12,
             "h": 8
           },
@@ -5104,7 +5537,7 @@
               "sort": "none"
             }
           },
-          "id": 49,
+          "id": 56,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5162,7 +5595,7 @@
           "description": "Durchgezogen = Wärmequelle (Eintritt), gestrichelt = Pufferspeicher.",
           "gridPos": {
             "x": 0,
-            "y": 100,
+            "y": 105,
             "w": 12,
             "h": 8
           },
@@ -5293,7 +5726,7 @@
               "sort": "none"
             }
           },
-          "id": 50,
+          "id": 57,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5351,7 +5784,7 @@
           "description": "Liter pro Minute.",
           "gridPos": {
             "x": 12,
-            "y": 100,
+            "y": 105,
             "w": 12,
             "h": 8
           },
@@ -5432,7 +5865,7 @@
               "sort": "none"
             }
           },
-          "id": 51,
+          "id": 58,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5468,12 +5901,12 @@
       "type": "row",
       "title": "Dienst · housevitals",
       "collapsed": true,
-      "id": 55,
+      "id": 62,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 97
       },
       "panels": [
         {
@@ -5482,7 +5915,7 @@
           "description": "",
           "gridPos": {
             "x": 0,
-            "y": 93,
+            "y": 98,
             "w": 12,
             "h": 6
           },
@@ -5531,7 +5964,7 @@
               "sort": "none"
             }
           },
-          "id": 53,
+          "id": 60,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -5578,7 +6011,7 @@
           "description": "",
           "gridPos": {
             "x": 12,
-            "y": 93,
+            "y": 98,
             "w": 12,
             "h": 6
           },
@@ -5673,7 +6106,7 @@
               "sort": "none"
             }
           },
-          "id": 54,
+          "id": 61,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
