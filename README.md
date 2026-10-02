@@ -770,6 +770,16 @@ that adds them: it integrates the recorded values the same way, writes an OpenMe
 file for `promtool tsdb create-blocks-from openmetrics` and the state file the service
 continues from.
 
+### Weather history (Open-Meteo archive)
+
+[tools/import_weather_history.py](tools/import_weather_history.py) fetches hourly
+weather for the house's location (the `forecast` section) from the Open-Meteo archive
+(reanalysis, usually up to a few days ago). It writes temperature, precipitation, rain,
+snowfall, solar radiation and cloud cover as `housevitals_weather_*` metrics
+(`source="open-meteo-archive"`), so recorded data can be related to past weather,
+e.g. heating hours vs. outdoor temperature. Query over windows of at least an hour,
+e.g. `avg_over_time(housevitals_weather_temperature_celsius[1d])`.
+
 ### Sungrow history from iSolarCloud
 
 iSolarCloud exports a yearly "Plant report" CSV with the plant's lifetime counters every
