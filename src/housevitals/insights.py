@@ -45,6 +45,10 @@ MAX_MONTHS = 24
 STEP_S = 3600
 MAX_STEPS_PER_QUERY = 10000  # Prometheus refuses more than 11000 points per series
 MAX_GAP_S = 3 * 3600  # longer without an hours sample counts as a gap in the log
+# Hours are read from this long before the period, so a gap in the log that began
+# before it (e.g. an SD card not written over the turn of the year) is interpolated
+# from its last sample instead of leaving the first months missing.
+HOURS_LOOKBACK = timedelta(days=180)
 MIN_FACTOR_HOURS = 5.0  # measured operating hours needed for a kWh-per-hour factor
 MIN_WEATHER_HOURS = 20  # hourly temperatures needed for a daily mean
 WH_PER_LITRE_KELVIN = 1.163
@@ -197,7 +201,7 @@ class Insights:
         energy_q = self.history.energy(hps + invs, "month", iso_start, iso_end)
         counter_qs = {(app.name, key): self._range(self._counter_query(app, key), t_start, now)
                       for app in hps for pair in COUNTERS.values() for key in pair}
-        hours_qs = {(app.name, mode): self._range(self._hours_query(app, mode), t_start - timedelta(days=1), now)
+        hours_qs = {(app.name, mode): self._range(self._hours_query(app, mode), t_start - HOURS_LOOKBACK, now)
                     for app in hps for mode in MODES}
         weather_q = self._range(f"max(last_over_time({WEATHER_METRIC}[{STEP_S}s])) or "
                                 f"avg(avg_over_time({FORECAST_METRIC}[{STEP_S}s]))", t_start, t_end)

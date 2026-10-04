@@ -180,3 +180,20 @@ async def test_report_for_a_period_before_the_measurement():
     (jan,) = report["months"]
     assert report["factors"]["hp"]["heating"]["source"] == "own"
     assert jan["heating"] == {"electricity_kwh": 744.0, "heat_kwh": 2976.0, "source": "estimated"}
+
+
+async def test_gap_in_the_hours_log_across_the_period_start_is_interpolated():
+    class GapHistory(FakeHistory):
+        async def query_range(self, query, start, end, step):
+            if "rkm_heating_hours" in query:  # log stops on 15 Dec, resumes on 15 Jan
+                gap = (datetime(2025, 12, 15, tzinfo=TZ).timestamp(), datetime(2026, 1, 15, tzinfo=TZ).timestamp())
+                values = [v for v in _series(start, end, lambda t: 100 + (t - JAN.timestamp()) / H * 0.5)
+                          if not gap[0] < v[0] < gap[1]]
+                return [{"metric": {}, "values": values}]
+            return await super().query_range(query, start, end, step)
+
+    report = await Insights(GapHistory(), InsightsConfig()).report("2026-01-01", "2026-02-01")
+    (jan,) = report["months"]
+    assert "missing" not in jan["heating"]
+    assert jan["heating"]["interpolated"] == ["hp"]
+    assert jan["heating"]["heat_kwh"] == pytest.approx(2976.0, abs=1)  # linear: same as without the gap
