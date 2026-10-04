@@ -190,11 +190,14 @@ class Insights:
         iso_start, iso_end = t_start.isoformat(), t_end.isoformat()
 
         # Measured kWh per month (the same figures as get_energy), hourly counter and
-        # operating hour series for the estimate, hourly outdoor temperatures.
+        # operating hour series for the estimate, hourly outdoor temperatures. Counters
+        # and hours are read up to now: the factors come from the measured time, which
+        # may lie after the period (e.g. last year's bill, recorded since this autumn).
+        now = self.history.now()
         energy_q = self.history.energy(hps + invs, "month", iso_start, iso_end)
-        counter_qs = {(app.name, key): self._range(self._counter_query(app, key), t_start, t_end)
+        counter_qs = {(app.name, key): self._range(self._counter_query(app, key), t_start, now)
                       for app in hps for pair in COUNTERS.values() for key in pair}
-        hours_qs = {(app.name, mode): self._range(self._hours_query(app, mode), t_start - timedelta(days=1), t_end)
+        hours_qs = {(app.name, mode): self._range(self._hours_query(app, mode), t_start - timedelta(days=1), now)
                     for app in hps for mode in MODES}
         weather_q = self._range(f"max(last_over_time({WEATHER_METRIC}[{STEP_S}s])) or "
                                 f"avg(avg_over_time({FORECAST_METRIC}[{STEP_S}s]))", t_start, t_end)

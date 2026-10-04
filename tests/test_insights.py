@@ -133,7 +133,7 @@ async def test_report_estimates_before_measurement():
     jan, feb = report["months"]
     assert report["measured_from"]["hp"] == FEB.isoformat(timespec="seconds")
     assert report["factors"]["hp"]["heating"] == {
-        "electricity_kwh_per_h": 2.0, "heat_kwh_per_h": 8.0, "measured_hours": 336.0,
+        "electricity_kwh_per_h": 2.0, "heat_kwh_per_h": 8.0, "measured_hours": 510.0,  # 1 Feb to now (15 Mar 12:00)
         "source": "own"}
     assert report["factors"]["hp"]["dhw"] is None  # no hot water hours anywhere
 
@@ -171,3 +171,12 @@ async def test_page_and_endpoint_are_served():
         assert 'fetch("api/v1/insights' in page.text
         spec = (await client.get("/openapi.json")).json()
         assert "/api/v1/insights" in spec["paths"]
+
+
+async def test_report_for_a_period_before_the_measurement():
+    """Last year's bill: the counters were only recorded after the period, the factors
+    still come from that measured time."""
+    report = await Insights(FakeHistory(), InsightsConfig()).report("2026-01-01", "2026-02-01")
+    (jan,) = report["months"]
+    assert report["factors"]["hp"]["heating"]["source"] == "own"
+    assert jan["heating"] == {"electricity_kwh": 744.0, "heat_kwh": 2976.0, "source": "estimated"}
