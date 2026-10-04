@@ -413,17 +413,24 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 
 `/insights` is a web page for tenants (German) with what their utility bill
 (Nebenkostenabrechnung) says about heating and hot water, and what they can do to pay
-less. It needs `service.prometheus_url`. Per month of a billing period (default: the
-last 12 months; also calendar years) it shows:
+less. It needs `service.prometheus_url`. It is based on both (all) heat pumps: their
+heat and electricity are added up. Per month of a billing period (default: the last
+complete calendar year, the period of the bill; also the last 12 months) it shows:
 
 * heat delivered for space heating and hot water, the heat pumps' electricity and the
   seasonal performance factor
 * the share of that electricity from the house's own PV, and the energy costs
 * mean outdoor temperature and degree days (G20/15, VDI 3807) from the imported
   [weather history](#weather-history-open-meteo-archive)
-* the tenant's estimated share from their living area, how their consumption compares
-  with the house average and the split of the costs (50–70 % by consumption under the
-  German Heizkostenverordnung, the rest by area)
+* the tenant's share: from the heat quantities on their last bill (their flat and all
+  flats, line "Heizung + Warmwasser"), else estimated from the living area and how
+  their consumption compares with the house average; the costs are split by
+  `consumption_share` by heat meter and the rest by area. The flats' heat meters
+  measure less than the heat pumps deliver (storage and pipe losses), so the share is
+  applied to the heat pumps' heat and costs
+* the tenant's hot water meter (m³), if given, for the water saved by hot water measures
+* a warning when operating hours of a heat pump are missing in the period (the totals
+  are then too low)
 * measures the tenant can take (room temperature, ventilation, setback, radiators,
   shutters, shower head, shower time, tap aerator) with the saving per year in kWh and
   euros, including water and sewage for hot water. One kelvin less room temperature
@@ -435,7 +442,8 @@ last 12 months; also calendar years) it shows:
 **Measured or estimated.** Months in which the heat pumps' energy counters were
 recorded are measured. Earlier months are estimated from the operating hours per mode
 of the [NEO-RKM log](#neo-rkm-operating-log-micro-sd): hours × the mean electricity
-and heat per operating hour of the measured time. A heat pump that has no measured
+and heat per operating hour of the measured time, also for periods that ended before recording began (e.g. last
+year's bill). A heat pump that has no measured
 hours in a mode (e.g. one that only makes hot water) uses the factor of the others.
 Gaps in the hours log are interpolated linearly; months without hours are listed as
 missing. Factors measured in mild weather underestimate the electricity of cold months;
@@ -448,7 +456,7 @@ browser). Optional `insights` section in `devices.json`:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `living_area_m2` | – | Heated living area of the house |
-| `consumption_share` | `0.7` | Share of the costs split by consumption |
+| `consumption_share` | `0.7` | Share of the costs split by heat meter (Heizkostenverordnung: 0.5–0.7; 1.0 = all by heat meter) |
 | `grid_price_eur_per_kwh` | `0.30` | Grid electricity for the heat pumps |
 | `pv_price_eur_per_kwh` | `0.0` | Own PV electricity used by the heat pumps |
 | `water_price_eur_per_m3` | `4.5` | Fresh water plus sewage |

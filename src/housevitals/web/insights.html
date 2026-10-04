@@ -101,16 +101,24 @@ ul.notes { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 
   <div id="status" class="card muted">Daten werden geladen …</div>
 
   <div id="content" class="hidden">
+    <div id="gap" class="card error small hidden" style="margin-bottom:12px"></div>
     <section class="grid kpis" id="kpis"></section>
 
     <section class="grid two">
       <div class="card inputs">
         <h2>Ihre Angaben</h2>
+        <p class="small muted">Am genauesten mit den Zahlen aus Ihrer letzten Nebenkostenabrechnung, Zeile „Heizung + Warmwasser“ (Wärmemenge).</p>
         <div class="row2">
+          <div><label for="ownHeat">Wärmemenge Ihre Wohnung (MWh)</label><input id="ownHeat" type="number" min="0" step="0.001" placeholder="z. B. 15,9"></div>
+          <div><label for="totalHeat">Wärmemenge alle Wohnungen (MWh)</label><input id="totalHeat" type="number" min="0" step="0.001"></div>
+        </div>
+        <div><label for="ownDhw">Ihr Warmwasser (m³ pro Jahr, Warmwasserzähler)</label><input id="ownDhw" type="number" min="0" step="0.1" placeholder="optional"></div>
+        <p class="small muted" id="areaHint">Ohne Wärmemenge wird Ihr Anteil aus der Wohnfläche geschätzt:</p>
+        <div class="row2" id="areaRow">
           <div><label for="area">Ihre Wohnfläche (m²)</label><input id="area" type="number" min="1" step="0.5" placeholder="z. B. 72"></div>
           <div><label for="totalArea">Wohnfläche Haus (m²)</label><input id="totalArea" type="number" min="1" step="0.5"></div>
         </div>
-        <div>
+        <div id="relRow">
           <label for="rel">Ihr Verbrauch je m² im Vergleich zum Hausdurchschnitt: <b id="relOut">100 %</b></label>
           <input id="rel" type="range" min="50" max="150" step="5" value="100">
           <div class="small muted">Steht in Ihrer letzten Heizkostenabrechnung (Verbrauchseinheiten). Ohne Angabe: Durchschnitt.</div>
@@ -124,16 +132,16 @@ ul.notes { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 
             </div>
             <div class="row2">
               <div><label for="waterPrice">Wasser + Abwasser (€/m³)</label><input id="waterPrice" type="number" min="0" step="0.1"></div>
-              <div><label for="consShare">Verbrauchsanteil (%)</label><input id="consShare" type="number" min="50" max="70" step="5"></div>
+              <div><label for="consShare">Verbrauchsanteil (%)</label><input id="consShare" type="number" min="50" max="100" step="5"></div>
             </div>
-            <p class="small muted">Der Verbrauchsanteil (50–70 % nach Heizkostenverordnung) wird nach Ihren Zählern verteilt, der Rest nach Wohnfläche.</p>
+            <p class="small muted">Der Verbrauchsanteil wird nach den Wärmezählern der Wohnungen verteilt, der Rest nach Wohnfläche.</p>
           </div>
         </details>
       </div>
 
       <div class="card">
         <h2>Ihr Anteil (Schätzung)</h2>
-        <div id="shareEmpty" class="muted">Tragen Sie Ihre Wohnfläche und die Wohnfläche des Hauses ein, um Ihren Anteil zu sehen.</div>
+        <div id="shareEmpty" class="muted">Tragen Sie die Wärmemengen aus Ihrer Abrechnung oder Ihre Wohnfläche ein, um Ihren Anteil zu sehen.</div>
         <div id="shareBox" class="hidden">
           <div class="share" id="share"></div>
           <p class="small muted" style="margin-top:12px" id="shareNote"></p>
@@ -181,7 +189,7 @@ const monthLabel = (iso) => { const [y, m] = iso.slice(0, 7).split("-"); return 
 
 let data = null;
 const STORE = "housevitals.insights";
-const INPUTS = ["area", "totalArea", "rel", "gridPrice", "pvPrice", "waterPrice", "consShare"];
+const INPUTS = ["ownHeat", "totalHeat", "ownDhw", "area", "totalArea", "rel", "gridPrice", "pvPrice", "waterPrice", "consShare"];
 
 function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; } }
 function save() {
@@ -223,7 +231,7 @@ function applyDefaults() {
   if (defaultsApplied) return;
   defaultsApplied = true;
   const s = data.settings, saved = load();
-  const defaults = {area: "", totalArea: s.living_area_m2 ?? "", rel: 100,
+  const defaults = {ownHeat: "", totalHeat: "", ownDhw: "", area: "", totalArea: s.living_area_m2 ?? "", rel: 100,
     gridPrice: s.grid_price_eur_per_kwh, pvPrice: s.pv_price_eur_per_kwh,
     waterPrice: s.water_price_eur_per_m3, consShare: Math.round(s.consumption_share * 100)};
   INPUTS.forEach((id) => $(id).value = saved[id] ?? defaults[id]);
@@ -248,16 +256,23 @@ function costs() {
   return out;
 }
 
+// The tenant: s = share of the house's heat (from the heat meters on the bill, else
+// area x relative use), a = area share (for the part split by area), c = part split
+// by consumption.
 function tenant() {
+  const c = Math.min(Math.max((num("consShare") ?? 100) / 100, 0), 1);
   const area = num("area"), total = num("totalArea");
-  if (!area || !total || area > total) return null;
-  return {a: area / total, f: (num("rel") ?? 100) / 100, c: Math.min(Math.max((num("consShare") ?? 70) / 100, 0), 1)};
+  const a = area && total && area <= total ? area / total : null;
+  const own = num("ownHeat"), all = num("totalHeat");
+  if (own != null && all && own <= all) return {s: own / all, a: a ?? own / all, c, meters: true};
+  if (a == null) return null;
+  return {s: a * (num("rel") ?? 100) / 100, a, c, meters: false};
 }
 
-// Tenant's cost: consumption part by own (relative) use, the rest by area.
-const tenantCost = (houseEur, t) => houseEur * t.a * (t.c * t.f + (1 - t.c));
-// Saving share p of the tenant's own use h: own consumption part fully, area part
-// only by the tenant's area share (the whole house's bill drops a little).
+// Tenant's cost: consumption part by own share of the heat, the rest by area.
+const tenantCost = (houseEur, t) => houseEur * (t.c * t.s + (1 - t.c) * t.a);
+// Saving share p of the tenant's own heat h: the consumption part fully, the area
+// part only by the tenant's area share (the whole house's bill drops a little).
 const tenantSaving = (perKwh, h, p, t) => perKwh * h * p * (t.c + (1 - t.c) * t.a);
 
 function measures() {
@@ -304,6 +319,14 @@ function render() {
       s: "kWh Wärme je kWh Strom"},
     {l: "Energiekosten Haus", v: eur(eurAll), s: `${fmt(eurAll / heatAll * 100, 1)} ct je kWh Wärme`},
   ];
+  // Months without operating hours of a heat pump: the totals are too low.
+  const missingByHp = {};
+  data.months.forEach((m) => [...new Set([...(m.heating.missing || []), ...(m.dhw.missing || [])])]
+    .forEach((hp) => (missingByHp[hp] ||= []).push(monthLabel(m.start))));
+  const gapText = Object.entries(missingByHp).map(([hp, ms]) => `${hpLabel(hp)} (${ms.length > 2 ? ms[0] + "–" + ms[ms.length - 1] : ms.join(", ")})`);
+  $("gap").classList.toggle("hidden", !gapText.length);
+  $("gap").textContent = gapText.length
+    ? `Unvollständig: Für ${gapText.join(" und ")} fehlen Betriebsstunden. Wärme, Strom und Kosten sind deshalb zu niedrig.` : "";
   $("kpis").innerHTML = kpis.map((k) => `<div class="card kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`).join("");
 
   // Tenant share
@@ -314,10 +337,16 @@ function render() {
     $("share").innerHTML = [
       {l: "Heizung", v: eur(h)}, {l: "Warmwasser (Energie)", v: eur(w)}, {l: "Zusammen", v: eur(h + w)},
     ].map((k) => `<div><div class="small muted">${k.l}</div><div class="big">${k.v}</div></div>`).join("");
-    $("shareNote").textContent = `Wohnflächenanteil ${pct(t.a, 1)}, Verbrauch ${fmt(t.f * 100)} % des Durchschnitts, ${fmt(t.c * 100)} % nach Verbrauch verteilt. ` +
+    $("shareNote").textContent = (t.meters
+        ? `Ihr Anteil an der Wärmemenge: ${pct(t.s, 1)}. `
+        : `Geschätzter Anteil an der Wärme: ${pct(t.s, 1)} (Wohnfläche ${pct(t.a, 1)}, Verbrauch ${fmt(t.s / t.a * 100)} % des Durchschnitts). `) +
+      (t.c < 1 ? `${fmt(t.c * 100)} % nach Verbrauch, der Rest nach Wohnfläche verteilt. ` : "Vollständig nach Wärmemenge verteilt. ") +
       "Nur die Energiekosten der Wärmepumpen; Wartung, Messdienst und Wasser kommen in der Abrechnung hinzu. Maßgeblich ist die Abrechnung Ihres Vermieters.";
   }
 
+  const meters = !!(t && t.meters);
+  ["areaHint", "relRow"].forEach((id) => $(id).classList.toggle("hidden", meters));
+  $("areaRow").classList.toggle("hidden", meters && (num("consShare") ?? 100) >= 100);
   renderChart();
   renderTable();
   renderMeasures(c, t);
@@ -327,17 +356,19 @@ function render() {
 function renderMeasures(c, t) {
   // Without the tenant's area the savings are those of the whole house, labelled as such.
   const list = measures(), house = !t;
-  const tt = t || {a: 1, f: 1, c: 1};
+  const tt = t || {s: 1, a: 1, c: 1};
   const litresHouse = data.total.dhw_litres;
   const water = num("waterPrice") ?? 0;
   const checked = loadChecked();
   let sumEur = 0, sumKwh = 0;
   const rows = list.map((m, i) => {
-    const h = c[m.mode].heat * tt.a * tt.f;  // tenant's (or the house's) heat in this mode
+    const h = c[m.mode].heat * tt.s;  // tenant's (or the house's) heat in this mode
     const kwh = h * m.p;
     let e = tenantSaving(c[m.mode].perKwh, h, m.p, tt);
     let waterEur = 0;
-    if (m.mode === "dhw") waterEur = litresHouse * tt.a * tt.f * m.p / 1000 * water;
+    // hot water in m³: the tenant's meter if given, else estimated from the heat
+    const m3 = t && num("ownDhw") != null ? num("ownDhw") : litresHouse * tt.s / 1000;
+    if (m.mode === "dhw") waterEur = m3 * m.p * water;
     e += waterEur;
     if (checked.has(i)) { sumEur += e; sumKwh += kwh; }
     return `<div class="card measure">
@@ -465,13 +496,19 @@ function renderNotes() {
   notes.push("PV-Anteil: Anteil des Wärmepumpenstroms aus der eigenen Photovoltaik, angenommen gleich der Autarkie des Hauses im jeweiligen Monat.");
   notes.push(`Gradtage (G20/15): Summe aus 20 °C minus Tagesmitteltemperatur an Heiztagen unter 15 °C, aus Wetterdaten des Standorts. Im Zeitraum ${fmt(data.weather.degree_days)} Gradtage an ${data.weather.heating_days} Heiztagen.`);
   notes.push("Warmwasser-Wärme enthält Speicher- und Zirkulationsverluste; die Liter sind daraus mit 30 % Verlust und 10 → 50 °C geschätzt.");
-  notes.push("Ersparnisse der Maßnahmen sind typische Werte (u. a. Verbraucherzentrale, co2online); die tatsächliche Wirkung hängt von Ihrer Wohnung und Ihren Gewohnheiten ab. Weil 30–50 % der Kosten nach Fläche verteilt werden, sparen Sie davon den nach Verbrauch verteilten Teil vollständig, den Rest anteilig mit allen Mietern.");
+  const share = (num("consShare") ?? 100) / 100;
+  notes.push("Ersparnisse der Maßnahmen sind typische Werte (u. a. Verbraucherzentrale, co2online); die tatsächliche Wirkung hängt von Ihrer Wohnung und Ihren Gewohnheiten ab. " +
+    (share < 1 ? `Weil ${fmt((1 - share) * 100)} % der Kosten nach Fläche verteilt werden, sparen Sie den nach Verbrauch verteilten Teil vollständig, den Rest anteilig mit allen Mietern.`
+               : "Die Kosten werden vollständig nach den Wärmezählern verteilt: Was Ihre Wohnung weniger verbraucht, sparen Sie vollständig."));
+  notes.push("Ihre Abrechnung verteilt den Strom der Wärmepumpen; die Wärmezähler der Wohnungen messen weniger Wärme, als die Wärmepumpen erzeugen (Verluste in Speichern und Leitungen, Flur). Ihr Anteil wird deshalb auf die Wärme der Wärmepumpen angewendet.");
   $("notes").innerHTML = notes.map((n) => `<li>${n}</li>`).join("");
 }
 
 // ------------------------------------------------------------------ wiring
-const sel = $("period");
+// Default: the last complete calendar year, the period of the utility bill.
+const sel = $("period"), DEFAULT_PERIOD = 2;
 periods().forEach((p, i) => sel.add(new Option(p.label, String(i))));
+sel.value = String(DEFAULT_PERIOD);
 sel.addEventListener("change", () => fetchData(periods()[+sel.value].q));
 INPUTS.forEach((id) => $(id).addEventListener("input", () => {
   if (id === "rel") $("relOut").textContent = $("rel").value + " %";
@@ -480,7 +517,7 @@ INPUTS.forEach((id) => $(id).addEventListener("input", () => {
 }));
 let resizeTimer;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => data && renderChart(), 150); });
-fetchData("");
+fetchData(periods()[DEFAULT_PERIOD].q);
 </script>
 </body>
 </html>
