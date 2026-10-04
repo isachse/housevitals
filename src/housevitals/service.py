@@ -3,6 +3,7 @@
 Serves on one HTTP port:
     /mcp            MCP (Streamable HTTP) for Claude and other MCP clients
     /api/v1/...     REST API (OpenAPI docs at /docs), incl. the control API (overrides)
+    /insights       tenant page: heating and hot water for the utility bill
     /healthz        liveness
 and pushes all polled values as OpenTelemetry metrics via OTLP.
 """
@@ -20,6 +21,7 @@ from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from mcp.server.transport_security import TransportSecuritySettings
 
 from . import __version__
@@ -30,6 +32,7 @@ from .metrics import setup_metrics
 from .server import build_server
 
 _LOGGER = logging.getLogger(__name__)
+INSIGHTS_PAGE = Path(__file__).parent / "web" / "insights.html"
 
 
 MIN_TOKEN_LENGTH = 16
@@ -116,6 +119,12 @@ def build_app(config: ServerConfig, services: Services | None = None, metric_rea
             cached = charts.status()
             out["charts"] = {"cached": len(cached), "outdated": sum(c["outdated"] for c in cached)}
         return out
+
+    if services.history is not None:
+        @app.get("/insights", tags=["insights"], response_class=HTMLResponse)
+        def insights_page() -> str:
+            """Tenant page: heating and hot water for the utility bill, with savings."""
+            return INSIGHTS_PAGE.read_text(encoding="utf-8")
 
     app.include_router(build_router(services, control_token), prefix="/api/v1")
     app.mount("/", mcp_app)  # serves /mcp; mounted last so API routes win

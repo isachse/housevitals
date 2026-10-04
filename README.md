@@ -70,6 +70,7 @@ The data is available through:
 * **REST API**: live values, history, energy balances and charts as JSON/PNG with an OpenAPI description, plus the token-protected control API for overrides
 * **MCP**: the same data as tools for AI applications and agents (Claude and other MCP clients)
 * **Charts**: pre-rendered PNG charts via REST and MCP, plus German and English Grafana dashboards
+* **Tenant insights**: a web page with heating and hot water for the utility bill and what tenants can save (`/insights`)
 
 ![Architecture](docs/architecture.svg)
 
@@ -408,6 +409,58 @@ Chart texts follow the `lang` argument (the LLM passes the user's language), def
 `lang` from the config; background rendering uses the configured language. Each
 appliance keeps a fixed color; hatched bars mark periods that are not complete yet.
 
+### Tenant insights
+
+`/insights` is a web page for tenants (German) with what their utility bill
+(Nebenkostenabrechnung) says about heating and hot water, and what they can do to pay
+less. It needs `service.prometheus_url`. Per month of a billing period (default: the
+last 12 months; also calendar years) it shows:
+
+* heat delivered for space heating and hot water, the heat pumps' electricity and the
+  seasonal performance factor
+* the share of that electricity from the house's own PV, and the energy costs
+* mean outdoor temperature and degree days (G20/15, VDI 3807) from the imported
+  [weather history](#weather-history-open-meteo-archive)
+* the tenant's estimated share from their living area, how their consumption compares
+  with the house average and the split of the costs (50–70 % by consumption under the
+  German Heizkostenverordnung, the rest by area)
+* measures the tenant can take (room temperature, ventilation, setback, radiators,
+  shutters, shower head, shower time, tap aerator) with the saving per year in kWh and
+  euros, including water and sewage for hot water. One kelvin less room temperature
+  saves heating days / degree days of the heating energy, computed from this house's
+  weather; the other percentages are typical values (consumer advice centres).
+  A saving counts fully in the consumption part and only by the tenant's area share in
+  the area part.
+
+**Measured or estimated.** Months in which the heat pumps' energy counters were
+recorded are measured. Earlier months are estimated from the operating hours per mode
+of the [NEO-RKM log](#neo-rkm-operating-log-micro-sd): hours × the mean electricity
+and heat per operating hour of the measured time. A heat pump that has no measured
+hours in a mode (e.g. one that only makes hot water) uses the factor of the others.
+Gaps in the hours log are interpolated linearly; months without hours are listed as
+missing. Factors measured in mild weather underestimate the electricity of cold months;
+they improve as recording continues. The PV share of the heat pumps is assumed equal to
+the house's self-sufficiency in that month. These are device readings, not a bill.
+
+Prices and areas are defaults the tenant can change on the page (kept in their
+browser). Optional `insights` section in `devices.json`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `living_area_m2` | – | Heated living area of the house |
+| `consumption_share` | `0.7` | Share of the costs split by consumption |
+| `grid_price_eur_per_kwh` | `0.30` | Grid electricity for the heat pumps |
+| `pv_price_eur_per_kwh` | `0.0` | Own PV electricity used by the heat pumps |
+| `water_price_eur_per_m3` | `4.5` | Fresh water plus sewage |
+| `room_temperature_c` / `heating_limit_c` | `20` / `15` | Degree days G20/15 |
+| `dhw_temperature_c` / `cold_water_temperature_c` | `50` / `10` | Hot water litres from heat |
+| `dhw_loss_share` | `0.3` | Storage and circulation losses in the hot water heat |
+
+The page is served on `http_host` like the API. To let tenants open it from their own
+devices, the service must listen on the local network (`http_host`, `allowed_hosts`);
+it then serves the rest of the API there too, so consider a reverse proxy that exposes
+only `/insights` and `/api/v1/insights`.
+
 ### REST API
 
 | Endpoint | Description |
@@ -423,6 +476,7 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
 | `GET /api/v1/charts` | Chart catalog and cached images |
 | `GET /api/v1/forecast`, `/forecast/pv`, `/forecast/surplus`, `/forecast/weather` | PV forecast, surplus windows and weather |
+| `GET /api/v1/insights?start=…&end=…` | Heating and hot water per month for tenants (see [Tenant insights](#tenant-insights)) |
 | `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
 | `GET /api/v1/overrides` | Active overrides and what may be overridden (all appliances) |
 | `GET /api/v1/appliances/{name}/overrides` | The same for one appliance |
@@ -902,7 +956,8 @@ Rules that apply throughout:
    "Derived data points", "Code structure"), src/housevitals/registry.py (profile format,
    PROFILE_NAMES, poll plan, derived rules), modbus.py, hub.py, derived.py, history.py
    (DERIVED figures), charts.py (which charts need which `kind` and keys), forecast.py
-   (which inverter keys the PV forecast uses), one existing profile in
+   (which inverter keys the PV forecast uses), insights.py (the heating and hot water
+   counter keys of the tenant page), one existing profile in
    src/housevitals/profiles/ and tests/conftest.py (device simulators). Summarize how a
    device is described and polled before changing anything.
 
@@ -1011,6 +1066,7 @@ profiles (register labels) and a table in the dashboard generator.
 | `overrides.py` | Override manager: allow-list, leases, restore, write budget, persistence |
 | `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
 | `history.py` | Prometheus queries: history, calendar energy balance, runtimes |
+| `insights.py`, `web/insights.html` | Tenant insights: heating and hot water per month (measured or estimated from operating hours), degree days; the page `/insights` |
 | `charts.py`, `chart_style.py` | Chart catalog, cache and scheduler; matplotlib look |
 | `forecast.py`, `solar.py` | Open-Meteo PV forecast, calibration, surplus simulation; sun position and plane irradiance |
 | `queries.py` | Live-value selection and formatting shared by MCP and REST |

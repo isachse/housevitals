@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heizung &amp; Warmwasser</title>
+<meta name="description" content="Heizung und Warmwasser des Hauses für die Nebenkostenabrechnung, mit Sparmöglichkeiten für Mieter">
+<style>
+:root {
+  --bg: #f6f5f2; --surface: #ffffff; --surface-2: #f0eee9; --border: #e2dfd8;
+  --text: #1f2328; --muted: #5f6670; --faint: #8a9099;
+  --heat: #d1603d; --dhw: #2f7fb8; --temp: #6b6f76; --good: #2e7d4f; --warn: #a86400;
+  --accent: #2e7d4f; --shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --surface: #1d2024; --surface-2: #25292e; --border: #33383f;
+    --text: #e8eaed; --muted: #a3a9b1; --faint: #7b828b;
+    --heat: #e98262; --dhw: #5aa5dc; --temp: #b4b9c0; --good: #5cbf85; --warn: #e0a24a;
+    --accent: #5cbf85; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --surface: #1d2024; --surface-2: #25292e; --border: #33383f;
+  --text: #e8eaed; --muted: #a3a9b1; --faint: #7b828b;
+  --heat: #e98262; --dhw: #5aa5dc; --temp: #b4b9c0; --good: #5cbf85; --warn: #e0a24a;
+  --accent: #5cbf85; --shadow: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.01em; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+h3 { font-size: 15px; margin: 0; }
+p { margin: 0 0 10px; }
+.lead { color: var(--muted); max-width: 70ch; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+select, input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; }
+input[type=number] { width: 100%; }
+input[type=range] { width: 100%; accent-color: var(--accent); padding: 0; border: 0; background: none; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); }
+section { margin-top: 20px; }
+.grid { display: grid; gap: 12px; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kpi .l { font-size: 13px; color: var(--muted); }
+.kpi .s { font-size: 12px; color: var(--faint); margin-top: 2px; }
+.two { grid-template-columns: 1fr; }
+@media (min-width: 860px) { .two { grid-template-columns: 320px 1fr; } }
+.inputs { display: grid; gap: 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.share { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+#chart { width: 100%; position: relative; }
+#chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+#chart text { fill: var(--muted); font-size: 11px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; min-width: 170px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 500; }
+.tablewrap { overflow-x: auto; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.badge.est { color: var(--warn); }
+.measures { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.measure { display: flex; flex-direction: column; gap: 8px; }
+.measure .top { display: flex; gap: 10px; align-items: flex-start; }
+.measure input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+.measure .save { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; margin-top: auto; }
+.measure .eur { font-size: 20px; font-weight: 650; color: var(--good); font-variant-numeric: tabular-nums; }
+.tag { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); }
+.total { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between;
+  border-left: 4px solid var(--good); }
+details summary { cursor: pointer; color: var(--muted); }
+ul.notes { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.error { border-color: var(--warn); color: var(--warn); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Heizung &amp; Warmwasser im Haus</h1>
+      <p class="lead">Was die Wärmepumpen im Abrechnungszeitraum geleistet und verbraucht haben, was davon ungefähr auf Ihre Wohnung entfällt und womit Sie Ihre Nebenkosten senken können.</p>
+    </div>
+    <div>
+      <label for="period">Zeitraum</label>
+      <select id="period"></select>
+    </div>
+  </header>
+
+  <div id="status" class="card muted">Daten werden geladen …</div>
+
+  <div id="content" class="hidden">
+    <section class="grid kpis" id="kpis"></section>
+
+    <section class="grid two">
+      <div class="card inputs">
+        <h2>Ihre Angaben</h2>
+        <div class="row2">
+          <div><label for="area">Ihre Wohnfläche (m²)</label><input id="area" type="number" min="1" step="0.5" placeholder="z. B. 72"></div>
+          <div><label for="totalArea">Wohnfläche Haus (m²)</label><input id="totalArea" type="number" min="1" step="0.5"></div>
+        </div>
+        <div>
+          <label for="rel">Ihr Verbrauch je m² im Vergleich zum Hausdurchschnitt: <b id="relOut">100 %</b></label>
+          <input id="rel" type="range" min="50" max="150" step="5" value="100">
+          <div class="small muted">Steht in Ihrer letzten Heizkostenabrechnung (Verbrauchseinheiten). Ohne Angabe: Durchschnitt.</div>
+        </div>
+        <details>
+          <summary>Preise und Abrechnungsschlüssel</summary>
+          <div class="inputs" style="margin-top:10px">
+            <div class="row2">
+              <div><label for="gridPrice">Netzstrom (€/kWh)</label><input id="gridPrice" type="number" min="0" step="0.01"></div>
+              <div><label for="pvPrice">PV-Strom (€/kWh)</label><input id="pvPrice" type="number" min="0" step="0.01"></div>
+            </div>
+            <div class="row2">
+              <div><label for="waterPrice">Wasser + Abwasser (€/m³)</label><input id="waterPrice" type="number" min="0" step="0.1"></div>
+              <div><label for="consShare">Verbrauchsanteil (%)</label><input id="consShare" type="number" min="50" max="70" step="5"></div>
+            </div>
+            <p class="small muted">Der Verbrauchsanteil (50–70 % nach Heizkostenverordnung) wird nach Ihren Zählern verteilt, der Rest nach Wohnfläche.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Ihr Anteil (Schätzung)</h2>
+        <div id="shareEmpty" class="muted">Tragen Sie Ihre Wohnfläche und die Wohnfläche des Hauses ein, um Ihren Anteil zu sehen.</div>
+        <div id="shareBox" class="hidden">
+          <div class="share" id="share"></div>
+          <p class="small muted" style="margin-top:12px" id="shareNote"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Wärme pro Monat</h2>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--heat)"></span>Heizung</span>
+        <span><span class="dot" style="background:var(--dhw)"></span>Warmwasser</span>
+        <span><span class="dot" style="background:var(--temp);height:2px;border-radius:0;vertical-align:3px"></span>Ø Außentemperatur</span>
+        <span><span class="dot" style="background:repeating-linear-gradient(45deg,var(--faint) 0 2px,transparent 2px 4px)"></span>geschätzt aus Betriebsstunden</span>
+      </div>
+      <div id="chart"><div class="tip" id="tip"></div></div>
+      <details style="margin-top:12px">
+        <summary>Monatswerte als Tabelle</summary>
+        <div class="tablewrap" style="margin-top:8px"><table id="table"></table></div>
+      </details>
+    </section>
+
+    <section>
+      <h2>Was Sie selbst tun können</h2>
+      <p class="muted">Ersparnis pro Jahr für Ihren Haushalt, berechnet mit den Werten dieses Hauses. Haken Sie an, was Sie umsetzen möchten.</p>
+      <div class="card total" id="total" style="margin-bottom:12px"></div>
+      <div class="grid measures" id="measures"></div>
+    </section>
+
+    <section class="card">
+      <h2>So sind die Zahlen entstanden</h2>
+      <ul class="notes" id="notes"></ul>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 0) => v == null || !isFinite(v) ? "–" : v.toLocaleString("de-DE", {minimumFractionDigits: d, maximumFractionDigits: d});
+const eur = (v, d = 0) => v == null || !isFinite(v) ? "–" : v.toLocaleString("de-DE", {style: "currency", currency: "EUR", minimumFractionDigits: d, maximumFractionDigits: d});
+const pct = (v, d = 0) => v == null ? "–" : fmt(v * 100, d) + " %";
+const MONTHS = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const monthLabel = (iso) => { const [y, m] = iso.slice(0, 7).split("-"); return MONTHS[+m - 1] + " " + y.slice(2); };
+
+let data = null;
+const STORE = "housevitals.insights";
+const INPUTS = ["area", "totalArea", "rel", "gridPrice", "pvPrice", "waterPrice", "consShare"];
+
+function load() { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; } }
+function save() {
+  const v = {}; INPUTS.forEach((id) => v[id] = $(id).value);
+  try { localStorage.setItem(STORE, JSON.stringify(v)); } catch { /* storage unavailable */ }
+}
+function num(id) { const v = parseFloat($(id).value); return isFinite(v) ? v : null; }
+
+// Billing periods: the last 12 months and the last calendar years.
+function periods() {
+  const now = new Date(), y = now.getFullYear();
+  const out = [{label: "Letzte 12 Monate", q: ""}];
+  for (let year = y; year >= y - 2; year--)
+    out.push({label: year === y ? `${year} (bis heute)` : String(year), q: `start=${year}-01-01&end=${year + 1}-01-01`});
+  return out;
+}
+
+async function fetchData(q) {
+  $("status").textContent = "Daten werden geladen …";
+  $("status").className = "card muted";
+  $("status").classList.remove("hidden");
+  try {
+    const r = await fetch("api/v1/insights" + (q ? "?" + q : ""));
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    data = body;
+    $("status").classList.add("hidden");
+    $("content").classList.remove("hidden");
+    applyDefaults();
+    render();
+  } catch (err) {
+    $("status").textContent = "Die Daten konnten nicht geladen werden: " + err.message;
+    $("status").className = "card error";
+  }
+}
+
+let defaultsApplied = false;
+function applyDefaults() {
+  if (defaultsApplied) return;
+  defaultsApplied = true;
+  const s = data.settings, saved = load();
+  const defaults = {area: "", totalArea: s.living_area_m2 ?? "", rel: 100,
+    gridPrice: s.grid_price_eur_per_kwh, pvPrice: s.pv_price_eur_per_kwh,
+    waterPrice: s.water_price_eur_per_m3, consShare: Math.round(s.consumption_share * 100)};
+  INPUTS.forEach((id) => $(id).value = saved[id] ?? defaults[id]);
+  $("relOut").textContent = $("rel").value + " %";
+}
+
+// ------------------------------------------------------------------ calculations
+function costs() {
+  const grid = num("gridPrice") ?? 0, pv = num("pvPrice") ?? 0;
+  const out = {heating: {eur: 0, heat: 0, elec: 0}, dhw: {eur: 0, heat: 0, elec: 0}};
+  for (const m of data.months) {
+    const share = m.pv_share ?? 0;  // unknown: count all as grid electricity
+    const price = share * pv + (1 - share) * grid;
+    for (const mode of ["heating", "dhw"]) {
+      const e = m[mode].electricity_kwh || 0;
+      out[mode].eur += e * price;
+      out[mode].elec += e;
+      out[mode].heat += m[mode].heat_kwh || 0;
+    }
+  }
+  for (const mode of ["heating", "dhw"]) out[mode].perKwh = out[mode].heat ? out[mode].eur / out[mode].heat : 0;
+  return out;
+}
+
+function tenant() {
+  const area = num("area"), total = num("totalArea");
+  if (!area || !total || area > total) return null;
+  return {a: area / total, f: (num("rel") ?? 100) / 100, c: Math.min(Math.max((num("consShare") ?? 70) / 100, 0), 1)};
+}
+
+// Tenant's cost: consumption part by own (relative) use, the rest by area.
+const tenantCost = (houseEur, t) => houseEur * t.a * (t.c * t.f + (1 - t.c));
+// Saving share p of the tenant's own use h: own consumption part fully, area part
+// only by the tenant's area share (the whole house's bill drops a little).
+const tenantSaving = (perKwh, h, p, t) => perKwh * h * p * (t.c + (1 - t.c) * t.a);
+
+function measures() {
+  const perK = data.weather.heating_saving_per_kelvin ?? 0.06;
+  return [
+    {mode: "heating", title: "Raumtemperatur um 1 °C senken",
+      text: `Zum Beispiel 21 statt 22 °C im Wohnzimmer, 17–18 °C im Schlafzimmer. In diesem Haus spart jedes Grad etwa ${pct(perK, 1)} der Heizwärme (berechnet aus den Gradtagen des Zeitraums).`,
+      p: perK},
+    {mode: "heating", title: "Fenster nicht kippen, sondern stoßlüften",
+      text: "3–4 × täglich 5–10 Minuten weit öffnen, Thermostat dabei zudrehen. Dauerhaft gekippte Fenster kühlen Wände aus und kosten viel Wärme. Gilt, wenn bisher in der Heizzeit gekippt wird.",
+      p: 0.10},
+    {mode: "heating", title: "Nachts und bei Abwesenheit 2 °C absenken",
+      text: "Bei einer Wärmepumpe moderat absenken: Wird es zu kalt, muss sie anschließend mit höherer Vorlauftemperatur und schlechterem Wirkungsgrad nachheizen.",
+      p: perK * 2 * (8 / 24) * 0.5},
+    {mode: "heating", title: "Heizkörper und Thermostate frei halten",
+      text: "Keine Möbel, Verkleidungen oder langen Vorhänge vor Heizkörpern: Die Wärme kommt sonst nicht in den Raum, und der Thermostatkopf misst eine falsche Temperatur.",
+      p: 0.04},
+    {mode: "heating", title: "Rollläden und Vorhänge nachts schließen",
+      text: "Verringert die Wärmeabgabe über die Fenster in der Nacht.",
+      p: 0.03},
+    {mode: "dhw", title: "Sparduschkopf verwenden",
+      text: "6–7 statt 12 Liter pro Minute bei gleichem Komfort. Spart warmes Wasser, Wasser und Abwasser.",
+      p: 0.25},
+    {mode: "dhw", title: "Eine Minute kürzer duschen",
+      text: "Bei 8–9 Minuten Duschzeit ist eine Minute rund ein Achtel des Duschwassers; Duschen ist der größte Teil des Warmwassers.",
+      p: 0.08},
+    {mode: "dhw", title: "Strahlregler am Wasserhahn, Hände kalt waschen",
+      text: "Ein Strahlregler (Perlator) halbiert den Durchfluss; kurzes Händewaschen braucht kein warmes Wasser, das erst durch die Leitung kommen muss.",
+      p: 0.05},
+  ];
+}
+
+// ------------------------------------------------------------------ rendering
+function render() {
+  const c = costs(), t = tenant(), tot = data.total;
+  const heatAll = c.heating.heat + c.dhw.heat, eurAll = c.heating.eur + c.dhw.eur;
+  const estShare = heatAll ? data.months.reduce((s, m) => s + ["heating", "dhw"].reduce(
+    (x, mode) => x + (m[mode].source !== "measured" ? (m[mode].heat_kwh || 0) : 0), 0), 0) / heatAll : 0;
+  const kpis = [
+    {l: "Heizwärme Haus", v: fmt(c.heating.heat) + " kWh", s: estShare > 0 ? `${pct(estShare)} geschätzt` : "gemessen"},
+    {l: "Warmwasserwärme Haus", v: fmt(c.dhw.heat) + " kWh", s: `≈ ${fmt(tot.dhw_litres / 1000)} m³ Warmwasser`},
+    {l: "Strom der Wärmepumpen", v: fmt(tot.electricity_kwh) + " kWh", s: tot.pv_share != null ? `${pct(tot.pv_share)} vom eigenen Dach` : ""},
+    {l: "Jahresarbeitszahl", v: fmt(tot.electricity_kwh ? heatAll / tot.electricity_kwh : null, 1),
+      s: "kWh Wärme je kWh Strom"},
+    {l: "Energiekosten Haus", v: eur(eurAll), s: `${fmt(eurAll / heatAll * 100, 1)} ct je kWh Wärme`},
+  ];
+  $("kpis").innerHTML = kpis.map((k) => `<div class="card kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`).join("");
+
+  // Tenant share
+  $("shareEmpty").classList.toggle("hidden", !!t);
+  $("shareBox").classList.toggle("hidden", !t);
+  if (t) {
+    const h = tenantCost(c.heating.eur, t), w = tenantCost(c.dhw.eur, t);
+    $("share").innerHTML = [
+      {l: "Heizung", v: eur(h)}, {l: "Warmwasser (Energie)", v: eur(w)}, {l: "Zusammen", v: eur(h + w)},
+    ].map((k) => `<div><div class="small muted">${k.l}</div><div class="big">${k.v}</div></div>`).join("");
+    $("shareNote").textContent = `Wohnflächenanteil ${pct(t.a, 1)}, Verbrauch ${fmt(t.f * 100)} % des Durchschnitts, ${fmt(t.c * 100)} % nach Verbrauch verteilt. ` +
+      "Nur die Energiekosten der Wärmepumpen; Wartung, Messdienst und Wasser kommen in der Abrechnung hinzu. Maßgeblich ist die Abrechnung Ihres Vermieters.";
+  }
+
+  renderChart();
+  renderTable();
+  renderMeasures(c, t);
+  renderNotes();
+}
+
+function renderMeasures(c, t) {
+  // Without the tenant's area the savings are those of the whole house, labelled as such.
+  const list = measures(), house = !t;
+  const tt = t || {a: 1, f: 1, c: 1};
+  const litresHouse = data.total.dhw_litres;
+  const water = num("waterPrice") ?? 0;
+  const checked = loadChecked();
+  let sumEur = 0, sumKwh = 0;
+  const rows = list.map((m, i) => {
+    const h = c[m.mode].heat * tt.a * tt.f;  // tenant's (or the house's) heat in this mode
+    const kwh = h * m.p;
+    let e = tenantSaving(c[m.mode].perKwh, h, m.p, tt);
+    let waterEur = 0;
+    if (m.mode === "dhw") waterEur = litresHouse * tt.a * tt.f * m.p / 1000 * water;
+    e += waterEur;
+    if (checked.has(i)) { sumEur += e; sumKwh += kwh; }
+    return `<div class="card measure">
+      <div class="top"><input type="checkbox" data-i="${i}" ${checked.has(i) ? "checked" : ""} aria-label="${m.title} umsetzen">
+        <div><div class="tag">${m.mode === "heating" ? "Heizung" : "Warmwasser"} · ca. ${pct(m.p, m.p < 0.1 ? 1 : 0)}</div><h3>${m.title}</h3></div></div>
+      <p class="small muted">${m.text}</p>
+      <div class="save"><span class="eur">${eur(e)}</span><span class="small muted">pro Jahr · ${fmt(kwh)} kWh Wärme${waterEur ? ` · davon ${eur(waterEur)} Wasser` : ""}</span></div>
+    </div>`;
+  });
+  $("measures").innerHTML = rows.join("");
+  $("measures").querySelectorAll("input[type=checkbox]").forEach((cb) => cb.addEventListener("change", () => {
+    const s = loadChecked();
+    cb.checked ? s.add(+cb.dataset.i) : s.delete(+cb.dataset.i);
+    try { localStorage.setItem(STORE + ".measures", JSON.stringify([...s])); } catch { /* unavailable */ }
+    render();
+  }));
+  $("total").innerHTML = checked.size
+    ? `<div><div class="small muted">${house ? "Ersparnis für das ganze Haus" : "Ihre Ersparnis mit den gewählten Maßnahmen"}</div><div class="big" style="color:var(--good)">${eur(sumEur)} pro Jahr</div></div>
+       <div class="small muted">${fmt(sumKwh)} kWh Wärme weniger${house ? "" : `, ≈ ${eur(sumEur / 12)} im Monat bei den Abschlägen`}</div>`
+    : `<div class="muted">Wählen Sie Maßnahmen aus, um Ihre Ersparnis zu addieren.${house ? " Ohne Ihre Wohnfläche gelten die Beträge für das ganze Haus." : ""}</div>`;
+}
+// The chosen measures are remembered per browser, like the inputs.
+function loadChecked() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORE + ".measures")) || []); } catch { return new Set(); }
+}
+
+function renderChart() {
+  const box = $("chart"), months = data.months;
+  const W = Math.max(320, box.clientWidth), H = W < 600 ? 240 : 300;
+  const pad = {l: 52, r: 40, t: 24, b: 28};
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const heat = months.map((m) => (m.heating.heat_kwh || 0) + (m.dhw.heat_kwh || 0));
+  const max = niceMax(Math.max(1, ...heat));
+  const temps = months.map((m) => m.weather.mean_temperature_c).filter((v) => v != null);
+  const tMin = Math.min(-5, ...temps), tMax = Math.max(25, ...temps);
+  const bw = iw / months.length, barW = Math.min(36, bw * 0.68);
+  const y = (v) => pad.t + ih - v / max * ih;
+  const yt = (v) => pad.t + ih - (v - tMin) / (tMax - tMin) * ih;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wärme pro Monat und Außentemperatur">
+    <defs><pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" fill="var(--surface)" fill-opacity=".0"/><line x1="0" y1="0" x2="0" y2="5" stroke="var(--surface)" stroke-width="2" stroke-opacity=".55"/></pattern></defs>`;
+  for (let i = 0; i <= 4; i++) {
+    const v = max / 4 * i, yy = y(v);
+    s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${yy}" y2="${yy}" stroke="var(--border)"/>`;
+    s += `<text x="${pad.l - 8}" y="${yy + 4}" text-anchor="end">${fmt(v)}</text>`;
+  }
+  s += `<text x="${pad.l}" y="${pad.t - 8}" style="font-size:10px">kWh Wärme</text>`;
+  s += `<text x="${W - pad.r + 6}" y="${pad.t - 8}" style="font-size:10px">°C</text>`;
+  for (const v of [0, 10, 20]) if (v >= tMin && v <= tMax)
+    s += `<text x="${W - pad.r + 6}" y="${yt(v) + 4}">${v}°</text>`;
+  const pts = [];
+  months.forEach((m, i) => {
+    const x = pad.l + bw * i + (bw - barW) / 2;
+    const hh = m.heating.heat_kwh || 0, dh = m.dhw.heat_kwh || 0;
+    const est = (mode) => m[mode].source === "estimated" || m[mode].source === "mixed";
+    const yH = y(hh), yD = y(hh + dh);
+    s += `<rect x="${x}" y="${yH}" width="${barW}" height="${pad.t + ih - yH}" fill="var(--heat)" rx="2"/>`;
+    if (est("heating") && hh) s += `<rect x="${x}" y="${yH}" width="${barW}" height="${pad.t + ih - yH}" fill="url(#hatch)"/>`;
+    s += `<rect x="${x}" y="${yD}" width="${barW}" height="${yH - yD}" fill="var(--dhw)" rx="2"/>`;
+    if (est("dhw") && dh) s += `<rect x="${x}" y="${yD}" width="${barW}" height="${yH - yD}" fill="url(#hatch)"/>`;
+    if (months.length <= 14 || i % 2 === 0)
+      s += `<text x="${x + barW / 2}" y="${H - 8}" text-anchor="middle">${monthLabel(m.start)}</text>`;
+    s += `<rect x="${pad.l + bw * i}" y="${pad.t}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}" class="hit"/>`;
+    if (m.weather.mean_temperature_c != null) pts.push([x + barW / 2, yt(m.weather.mean_temperature_c)]);
+  });
+  if (pts.length > 1) s += `<polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="var(--temp)" stroke-width="2" stroke-linejoin="round"/>`;
+  pts.forEach((p) => s += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--surface)" stroke="var(--temp)" stroke-width="2"/>`);
+  s += "</svg>";
+  const tip = $("tip");
+  box.innerHTML = s;
+  box.appendChild(tip);
+  box.querySelectorAll(".hit").forEach((r) => {
+    r.addEventListener("mousemove", (ev) => showTip(ev, +r.dataset.i));
+    r.addEventListener("mouseleave", () => tip.style.display = "none");
+  });
+}
+
+function showTip(ev, i) {
+  const m = data.months[i], tip = $("tip"), box = $("chart").getBoundingClientRect();
+  const src = (mode) => ({measured: "gemessen", estimated: "geschätzt", mixed: "teils geschätzt", none: ""})[m[mode].source];
+  tip.innerHTML = `<b>${monthLabel(m.start)}${m.partial ? " (laufend)" : ""}</b><br>
+    <span class="dot" style="background:var(--heat)"></span>Heizung ${fmt(m.heating.heat_kwh)} kWh <span class="muted">${src("heating")}</span><br>
+    <span class="dot" style="background:var(--dhw)"></span>Warmwasser ${fmt(m.dhw.heat_kwh)} kWh <span class="muted">${src("dhw")}</span><br>
+    Strom ${fmt((m.heating.electricity_kwh || 0) + (m.dhw.electricity_kwh || 0))} kWh${m.pv_share != null ? `, ${pct(m.pv_share)} PV` : ""}<br>
+    Ø ${fmt(m.weather.mean_temperature_c, 1)} °C · ${fmt(m.weather.degree_days)} Gradtage`;
+  tip.style.display = "block";
+  const x = ev.clientX - box.left + 14, w = tip.offsetWidth;
+  tip.style.left = Math.min(x, box.width - w) + "px";
+  tip.style.top = Math.max(0, ev.clientY - box.top - 20) + "px";
+}
+
+function niceMax(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+
+function renderTable() {
+  const src = (e) => e.source === "measured" ? "" : e.source === "none" ? "" :
+    `<span class="badge est">${e.source === "mixed" ? "teils geschätzt" : "geschätzt"}</span>`;
+  const flags = (m) => [...new Set([...(m.heating.missing || []), ...(m.dhw.missing || [])])];
+  let h = `<tr><th>Monat</th><th>Heizung kWh</th><th>Warmwasser kWh</th><th>Strom kWh</th><th>PV-Anteil</th><th>Ø °C</th><th>Gradtage</th><th></th></tr>`;
+  for (const m of data.months) {
+    const miss = flags(m);
+    h += `<tr><td>${monthLabel(m.start)}${m.partial ? " *" : ""}</td>
+      <td>${fmt(m.heating.heat_kwh)}</td><td>${fmt(m.dhw.heat_kwh)}</td>
+      <td>${fmt((m.heating.electricity_kwh || 0) + (m.dhw.electricity_kwh || 0))}</td>
+      <td>${pct(m.pv_share)}</td><td>${fmt(m.weather.mean_temperature_c, 1)}</td><td>${fmt(m.weather.degree_days)}</td>
+      <td style="text-align:left">${src(m.heating) || src(m.dhw)}${miss.length ? ` <span class="badge" title="Keine Betriebsstunden">ohne ${miss.map(hpLabel).join(", ")}</span>` : ""}</td></tr>`;
+  }
+  $("table").innerHTML = h;
+}
+
+// Tenants know "Wärmepumpe 1", not the configured appliance names.
+const hpLabel = (name) => { const i = data.heat_pumps.indexOf(name); return data.heat_pumps.length > 1 ? `Wärmepumpe ${i + 1}` : "Wärmepumpe"; };
+
+function renderNotes() {
+  const f = data.factors, notes = [];
+  const measured = Object.values(data.measured_from).filter(Boolean).sort()[0];
+  notes.push("Die Werte kommen direkt aus den Wärmepumpen und dem Wechselrichter des Hauses. Es sind Gerätewerte, keine geeichten Zähler – Ihre Heizkostenabrechnung bleibt maßgeblich.");
+  if (measured) notes.push(`Wärme und Strom der Wärmepumpen werden seit ${new Date(measured).toLocaleDateString("de-DE")} gemessen. Frühere Monate sind aus den Betriebsstunden geschätzt: Stunden × mittlere Wärme und Strom je Betriebsstunde der gemessenen Zeit. Da diese Werte bisher aus milden Tagen stammen, ist der Strom kalter Monate eher unterschätzt.`);
+  const borrowed = Object.entries(f).flatMap(([hp, modes]) => Object.entries(modes).filter(([, v]) => v && v.source !== "own").map(([mode]) => `${hpLabel(hp)} (${mode === "heating" ? "Heizung" : "Warmwasser"})`));
+  if (borrowed.length) notes.push(`Für ${borrowed.join(", ")} gibt es noch keine Messung; dort werden die Werte der anderen Wärmepumpe je Betriebsstunde verwendet.`);
+  if (data.months.some((m) => m.heating.interpolated || m.dhw.interpolated)) notes.push("In einigen Monaten fehlt das Betriebsstunden-Protokoll; die Stunden der Lücke sind gleichmäßig verteilt.");
+  if (data.months.some((m) => m.heating.missing || m.dhw.missing)) notes.push("„ohne …“ in der Tabelle: Für diese Wärmepumpe liegen in dem Monat keine Betriebsstunden vor, ihr Anteil fehlt.");
+  notes.push("PV-Anteil: Anteil des Wärmepumpenstroms aus der eigenen Photovoltaik, angenommen gleich der Autarkie des Hauses im jeweiligen Monat.");
+  notes.push(`Gradtage (G20/15): Summe aus 20 °C minus Tagesmitteltemperatur an Heiztagen unter 15 °C, aus Wetterdaten des Standorts. Im Zeitraum ${fmt(data.weather.degree_days)} Gradtage an ${data.weather.heating_days} Heiztagen.`);
+  notes.push("Warmwasser-Wärme enthält Speicher- und Zirkulationsverluste; die Liter sind daraus mit 30 % Verlust und 10 → 50 °C geschätzt.");
+  notes.push("Ersparnisse der Maßnahmen sind typische Werte (u. a. Verbraucherzentrale, co2online); die tatsächliche Wirkung hängt von Ihrer Wohnung und Ihren Gewohnheiten ab. Weil 30–50 % der Kosten nach Fläche verteilt werden, sparen Sie davon den nach Verbrauch verteilten Teil vollständig, den Rest anteilig mit allen Mietern.");
+  $("notes").innerHTML = notes.map((n) => `<li>${n}</li>`).join("");
+}
+
+// ------------------------------------------------------------------ wiring
+const sel = $("period");
+periods().forEach((p, i) => sel.add(new Option(p.label, String(i))));
+sel.addEventListener("change", () => fetchData(periods()[+sel.value].q));
+INPUTS.forEach((id) => $(id).addEventListener("input", () => {
+  if (id === "rel") $("relOut").textContent = $("rel").value + " %";
+  save();
+  if (data) render();
+}));
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => data && renderChart(), 150); });
+fetchData("");
+</script>
+</body>
+</html>
