@@ -139,6 +139,7 @@ class DeviceConfig:
 
 
 DEFAULT_DERIVED_STATE_FILE = "~/.local/state/housevitals/derived.json"
+DEFAULT_AVAILABILITY_STATE_FILE = "~/.local/state/housevitals/availability.json"
 
 
 @dataclass
@@ -175,6 +176,10 @@ class ServiceConfig:
     # Counters of derived data points (e.g. energy integrated from power) survive
     # restarts here. None: not kept (the service sets DEFAULT_DERIVED_STATE_FILE).
     derived_state_file: str | None = None
+    # "Unavailable since" and "last success" of every appliance survive restarts here,
+    # so an outage keeps its start time. None: not kept (the service sets
+    # DEFAULT_AVAILABILITY_STATE_FILE).
+    availability_state_file: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ServiceConfig:

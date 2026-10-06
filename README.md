@@ -273,6 +273,7 @@ Open-Meteo ──► forecast (PV, surplus, weather) ──► REST API · MCP �
 | `restore_overrides_on_stop` | `true` | End all overrides (restore the previous values) when the service stops, and after an unclean end at the next start |
 | `override_verify_delay_s` | `10` | Seconds after a write before the value is checked a second time (devices that adjust a value shortly after accepting it) |
 | `derived_state_file` | `~/.local/state/housevitals/derived.json` | Counters of derived data points (e.g. energy integrated from power), kept across restarts |
+| `availability_state_file` | `~/.local/state/housevitals/availability.json` | `unavailable_since` and `last_success` of every appliance, kept across restarts so an outage keeps its start time |
 
 Per device: `extra_keys` (additionally polled and exported registers),
 `poll_interval` (overrides `poll_fast`), `min_request_interval`.
@@ -302,7 +303,7 @@ Each appliance has its own circuit breaker; one that is down never slows down th
 |------|-----------|
 | Detection | The first request without an answer (timeout, refused, connection lost) aborts the whole read and closes the connection; no retries per batch or register. A device that answers with a Modbus exception (e.g. illegal address) counts as reachable. |
 | Poller | While down, only the fast group is tried, after 1, 2, 4, 8 fast intervals, then every 5 min. When the device answers again, every group is refreshed at once. Outage start and end are logged once each. |
-| Requests | Never touch a device that is known to be down. Cached values are returned at once with `"stale": true` and `age_s`, plus `available: false`, `unavailable_since`, `last_success`, `last_error` and `retry_in_s`. Without any cached value: error with `retry_after_s` and a hint (REST: `503` with `Retry-After`). `get_overview`/`/api/v1/overview` over all appliances report a down appliance as an entry, never fail as a whole. |
+| Requests | Never touch a device that is known to be down. Cached values are returned at once with `"stale": true` and `age_s`, plus `available: false`, `unavailable_since`, `last_success`, `last_error` and `retry_in_s`. `unavailable_since` and `last_success` survive restarts (`availability_state_file`): an appliance that is still down after a restart keeps its outage start; one that was up before the restart and does not answer afterwards counts as down since its last success. Without any cached value: error with `retry_after_s` and a hint (REST: `503` with `Retry-After`). `get_overview`/`/api/v1/overview` over all appliances report a down appliance as an entry, never fail as a whole. |
 | Metrics | Values of a down appliance are not exported (gaps, not flat lines); `housevitals_up` becomes 0 at once. |
 | Grafana | "Now" tiles show a value only while its appliance answers (`… and on(appliance) housevitals_up == 1`), otherwise "No data"; the reachability tile turns red. |
 | `/healthz` | reports availability details per appliance. |
