@@ -139,6 +139,7 @@ class DeviceConfig:
 
 
 DEFAULT_DERIVED_STATE_FILE = "~/.local/state/housevitals/derived.json"
+DEFAULT_AVAILABILITY_STATE_FILE = "~/.local/state/housevitals/availability.json"
 
 
 @dataclass
@@ -175,6 +176,10 @@ class ServiceConfig:
     # Counters of derived data points (e.g. energy integrated from power) survive
     # restarts here. None: not kept (the service sets DEFAULT_DERIVED_STATE_FILE).
     derived_state_file: str | None = None
+    # "Unavailable since" and "last success" of every appliance survive restarts here,
+    # so an outage keeps its start time. None: not kept (the service sets
+    # DEFAULT_AVAILABILITY_STATE_FILE).
+    availability_state_file: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ServiceConfig:
@@ -266,6 +271,44 @@ class ForecastConfig:
 
 
 @dataclass
+class InsightsConfig:
+    """Tenant insights page (/insights): prices and areas for the heating and hot water
+    figures of a utility bill. Every value is a default the tenant can change on the page."""
+
+    living_area_m2: float | None = None  # heated living area of the whole house
+    consumption_share: float = 0.7  # share of heating costs split by consumption (HeizkostenV: 0.5-0.7)
+    grid_price_eur_per_kwh: float = 0.30  # electricity from the grid for the heat pumps
+    pv_price_eur_per_kwh: float = 0.0  # own PV electricity used by the heat pumps
+    water_price_eur_per_m3: float = 4.5  # fresh water plus sewage
+    room_temperature_c: float = 20.0  # degree days G20/15 (VDI 3807)
+    heating_limit_c: float = 15.0
+    dhw_temperature_c: float = 50.0  # hot water at the tap, for litres from heat
+    cold_water_temperature_c: float = 10.0
+    dhw_loss_share: float = 0.3  # storage and circulation losses in the delivered hot water heat
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> InsightsConfig:
+        unknown = set(data) - set(cls.__dataclass_fields__)
+        if unknown:
+            raise ConfigError(f"Unknown insights option(s): {', '.join(sorted(unknown))}")
+        cfg = cls(**data)
+        if cfg.living_area_m2 is not None and cfg.living_area_m2 <= 0:
+            raise ConfigError("insights.living_area_m2 must be positive")
+        if not 0 < cfg.consumption_share <= 1:
+            raise ConfigError("insights.consumption_share must be above 0 and at most 1")
+        if not 0 <= cfg.dhw_loss_share < 1:
+            raise ConfigError("insights.dhw_loss_share must be at least 0 and below 1")
+        for name in ("grid_price_eur_per_kwh", "pv_price_eur_per_kwh", "water_price_eur_per_m3"):
+            if getattr(cfg, name) < 0:
+                raise ConfigError(f"insights.{name} must not be negative")
+        if cfg.heating_limit_c > cfg.room_temperature_c:
+            raise ConfigError("insights.heating_limit_c must not be above room_temperature_c")
+        if cfg.dhw_temperature_c <= cfg.cold_water_temperature_c:
+            raise ConfigError("insights.dhw_temperature_c must be above cold_water_temperature_c")
+        return cfg
+
+
+@dataclass
 class ServerConfig:
     devices: list[DeviceConfig]
     default_device: str | None = None
@@ -273,6 +316,7 @@ class ServerConfig:
     lang: str = i18n.DEFAULT
     service: ServiceConfig = field(default_factory=ServiceConfig)
     forecast: ForecastConfig | None = None
+    insights: InsightsConfig = field(default_factory=InsightsConfig)
     _lookup: dict[str, DeviceConfig] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -341,6 +385,7 @@ def load_config_file(path: str | Path) -> ServerConfig:
         lang=raw.get("lang", i18n.DEFAULT),
         service=ServiceConfig.from_dict(raw.get("service", {})),
         forecast=ForecastConfig.from_dict(raw["forecast"]) if raw.get("forecast") else None,
+        insights=InsightsConfig.from_dict(raw.get("insights", {})),
     )
 
 

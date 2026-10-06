@@ -70,6 +70,7 @@ The data is available through:
 * **REST API**: live values, history, energy balances and charts as JSON/PNG with an OpenAPI description, plus the token-protected control API for overrides
 * **MCP**: the same data as tools for AI applications and agents (Claude and other MCP clients)
 * **Charts**: pre-rendered PNG charts via REST and MCP, plus German and English Grafana dashboards
+* **Tenant insights**: a web page with heating and hot water for the utility bill and what tenants can save (`/insights`)
 
 ![Architecture](docs/architecture.svg)
 
@@ -272,6 +273,7 @@ Open-Meteo ──► forecast (PV, surplus, weather) ──► REST API · MCP �
 | `restore_overrides_on_stop` | `true` | End all overrides (restore the previous values) when the service stops, and after an unclean end at the next start |
 | `override_verify_delay_s` | `10` | Seconds after a write before the value is checked a second time (devices that adjust a value shortly after accepting it) |
 | `derived_state_file` | `~/.local/state/housevitals/derived.json` | Counters of derived data points (e.g. energy integrated from power), kept across restarts |
+| `availability_state_file` | `~/.local/state/housevitals/availability.json` | `unavailable_since` and `last_success` of every appliance, kept across restarts so an outage keeps its start time |
 
 Per device: `extra_keys` (additionally polled and exported registers),
 `poll_interval` (overrides `poll_fast`), `min_request_interval`.
@@ -301,7 +303,7 @@ Each appliance has its own circuit breaker; one that is down never slows down th
 |------|-----------|
 | Detection | The first request without an answer (timeout, refused, connection lost) aborts the whole read and closes the connection; no retries per batch or register. A device that answers with a Modbus exception (e.g. illegal address) counts as reachable. |
 | Poller | While down, only the fast group is tried, after 1, 2, 4, 8 fast intervals, then every 5 min. When the device answers again, every group is refreshed at once. Outage start and end are logged once each. |
-| Requests | Never touch a device that is known to be down. Cached values are returned at once with `"stale": true` and `age_s`, plus `available: false`, `unavailable_since`, `last_success`, `last_error` and `retry_in_s`. Without any cached value: error with `retry_after_s` and a hint (REST: `503` with `Retry-After`). `get_overview`/`/api/v1/overview` over all appliances report a down appliance as an entry, never fail as a whole. |
+| Requests | Never touch a device that is known to be down. Cached values are returned at once with `"stale": true` and `age_s`, plus `available: false`, `unavailable_since`, `last_success`, `last_error` and `retry_in_s`. `unavailable_since` and `last_success` survive restarts (`availability_state_file`): an appliance that is still down after a restart keeps its outage start; one that was up before the restart and does not answer afterwards counts as down since its last success. Without any cached value: error with `retry_after_s` and a hint (REST: `503` with `Retry-After`). `get_overview`/`/api/v1/overview` over all appliances report a down appliance as an entry, never fail as a whole. |
 | Metrics | Values of a down appliance are not exported (gaps, not flat lines); `housevitals_up` becomes 0 at once. |
 | Grafana | "Now" tiles show a value only while its appliance answers (`… and on(appliance) housevitals_up == 1`), otherwise "No data"; the reachability tile turns red. |
 | `/healthz` | reports availability details per appliance. |
@@ -408,6 +410,66 @@ Chart texts follow the `lang` argument (the LLM passes the user's language), def
 `lang` from the config; background rendering uses the configured language. Each
 appliance keeps a fixed color; hatched bars mark periods that are not complete yet.
 
+### Tenant insights
+
+`/insights` is a web page for tenants (German) with what their utility bill
+(Nebenkostenabrechnung) says about heating and hot water, and what they can do to pay
+less. It needs `service.prometheus_url`. It is based on both (all) heat pumps: their
+heat and electricity are added up. Per month of a billing period (default: the last
+complete calendar year, the period of the bill; also the last 12 months) it shows:
+
+* heat delivered for space heating and hot water, the heat pumps' electricity and the
+  seasonal performance factor
+* the share of that electricity from the house's own PV, and the energy costs
+* mean outdoor temperature and degree days (G20/15, VDI 3807) from the imported
+  [weather history](#weather-history-open-meteo-archive)
+* the tenant's share: from the heat quantities on their last bill (their flat and all
+  flats, line "Heizung + Warmwasser"), else estimated from the living area and how
+  their consumption compares with the house average; the costs are split by
+  `consumption_share` by heat meter and the rest by area. The flats' heat meters
+  measure less than the heat pumps deliver (storage and pipe losses), so the share is
+  applied to the heat pumps' heat and costs
+* the tenant's hot water meter (m³), if given, for the water saved by hot water measures
+* a warning when operating hours of a heat pump are missing in the period (the totals
+  are then too low)
+* measures the tenant can take (room temperature, ventilation, setback, radiators,
+  shutters, shower head, shower time, tap aerator) with the saving per year in kWh and
+  euros, including water and sewage for hot water. One kelvin less room temperature
+  saves heating days / degree days of the heating energy, computed from this house's
+  weather; the other percentages are typical values (consumer advice centres).
+  A saving counts fully in the consumption part and only by the tenant's area share in
+  the area part.
+
+**Measured or estimated.** Months in which the heat pumps' energy counters were
+recorded are measured. Earlier months are estimated from the operating hours per mode
+of the [NEO-RKM log](#neo-rkm-operating-log-micro-sd): hours × the mean electricity
+and heat per operating hour of the measured time, also for periods that ended before recording began (e.g. last
+year's bill). A heat pump that has no measured
+hours in a mode (e.g. one that only makes hot water) uses the factor of the others.
+Gaps in the hours log are interpolated linearly; months without hours are listed as
+missing. Factors measured in mild weather underestimate the electricity of cold months;
+they improve as recording continues. The PV share of the heat pumps is assumed equal to
+the house's self-sufficiency in that month. These are device readings, not a bill.
+
+Prices and areas are defaults the tenant can change on the page (kept in their
+browser). Optional `insights` section in `devices.json`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `living_area_m2` | – | Heated living area of the house |
+| `consumption_share` | `0.7` | Share of the costs split by heat meter (Heizkostenverordnung: 0.5–0.7; 1.0 = all by heat meter) |
+| `grid_price_eur_per_kwh` | `0.30` | Grid electricity for the heat pumps |
+| `pv_price_eur_per_kwh` | `0.0` | Own PV electricity used by the heat pumps |
+| `water_price_eur_per_m3` | `4.5` | Fresh water plus sewage |
+| `room_temperature_c` / `heating_limit_c` | `20` / `15` | Degree days G20/15 |
+| `dhw_temperature_c` / `cold_water_temperature_c` | `50` / `10` | Hot water litres from heat |
+| `dhw_loss_share` | `0.3` | Storage and circulation losses in the hot water heat |
+
+The page is served on `http_host` like the API. To let tenants open it from their own
+devices, the service must listen on the local network (`http_host`, `allowed_hosts`);
+it then serves the rest of the API there too, so consider a reverse proxy that exposes
+only `/insights` and `/api/v1/insights`.
+
 ### REST API
 
 | Endpoint | Description |
@@ -423,6 +485,7 @@ appliance keeps a fixed color; hatched bars mark periods that are not complete y
 | `GET /api/v1/appliances/{name}/runtime?key=compressor&start=…` | State durations and starts |
 | `GET /api/v1/charts` | Chart catalog and cached images |
 | `GET /api/v1/forecast`, `/forecast/pv`, `/forecast/surplus`, `/forecast/weather` | PV forecast, surplus windows and weather |
+| `GET /api/v1/insights?start=…&end=…` | Heating and hot water per month for tenants (see [Tenant insights](#tenant-insights)) |
 | `GET /api/v1/charts/{chart}.png?appliance=…&range=…&lang=…` | Chart as PNG |
 | `GET /api/v1/overrides` | Active overrides and what may be overridden (all appliances) |
 | `GET /api/v1/appliances/{name}/overrides` | The same for one appliance |
@@ -902,7 +965,8 @@ Rules that apply throughout:
    "Derived data points", "Code structure"), src/housevitals/registry.py (profile format,
    PROFILE_NAMES, poll plan, derived rules), modbus.py, hub.py, derived.py, history.py
    (DERIVED figures), charts.py (which charts need which `kind` and keys), forecast.py
-   (which inverter keys the PV forecast uses), one existing profile in
+   (which inverter keys the PV forecast uses), insights.py (the heating and hot water
+   counter keys of the tenant page), one existing profile in
    src/housevitals/profiles/ and tests/conftest.py (device simulators). Summarize how a
    device is described and polled before changing anything.
 
@@ -1011,6 +1075,7 @@ profiles (register labels) and a table in the dashboard generator.
 | `overrides.py` | Override manager: allow-list, leases, restore, write budget, persistence |
 | `metrics.py` | OpenTelemetry instruments for polled values, Prometheus metric names |
 | `history.py` | Prometheus queries: history, calendar energy balance, runtimes |
+| `insights.py`, `web/insights.html` | Tenant insights: heating and hot water per month (measured or estimated from operating hours), degree days; the page `/insights` |
 | `charts.py`, `chart_style.py` | Chart catalog, cache and scheduler; matplotlib look |
 | `forecast.py`, `solar.py` | Open-Meteo PV forecast, calibration, surplus simulation; sun position and plane irradiance |
 | `queries.py` | Live-value selection and formatting shared by MCP and REST |

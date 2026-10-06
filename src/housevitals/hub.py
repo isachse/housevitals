@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .config import DeviceConfig, ServerConfig, ServiceConfig
@@ -31,6 +34,8 @@ STALE_AFTER_INTERVALS = 3
 # every MAX_RETRY_S. Requests in between never touch the device.
 BACKOFF_FACTORS = (1, 2, 4, 8)
 MAX_RETRY_S = 300.0
+# While up, the time of the last answered request is saved at most this often.
+SAVE_SUCCESS_EVERY_S = 60.0
 UNAVAILABLE_HINT = ("The appliance does not answer (offline, network or gateway problem). "
                     "Values shown are the last known readings, see age_s; recorded history "
                     "(get_history, get_energy) still works.")
@@ -76,6 +81,11 @@ class Appliance:
     retry_at: float = 0.0  # monotonic; before this, requests fail fast
     written_at: dict[str, float] = field(default_factory=dict)  # key -> wall clock of last write
     derived_values: DerivedValues | None = None  # evaluates the profile's derived points
+    # Availability kept across restarts: the outage start from before the restart, if
+    # the appliance was already down then, and a callback that saves the state.
+    restored_down_since: float | None = None
+    on_availability: Callable[[], None] | None = None
+    _saved_success: float = 0.0
 
     @classmethod
     def create(cls, config: DeviceConfig, service: ServiceConfig) -> Appliance:
@@ -134,9 +144,12 @@ class Appliance:
         return self.up is False and self.retry_in() > 0
 
     def _mark_down(self, error: str) -> None:
-        if self.up is not False:
+        changed = self.up is not False
+        if changed:
             _LOGGER.warning("%s unavailable: %s", self.name, error)
             self.since = time.time()
+            if self.up is None:  # first attempt since the start: the outage may be older
+                self.since = self.restored_down_since or self.last_success or self.since
         self.up, self.last_error = False, error
         interval = self.status["fast"].interval if "fast" in self.status else self.service.poll_fast
         if self.failures < len(BACKOFF_FACTORS):
@@ -145,14 +158,30 @@ class Appliance:
             wait = MAX_RETRY_S
         self.retry_at = time.monotonic() + wait
         self.failures += 1
+        if changed:
+            self._persist()
 
     def _mark_up(self) -> None:
         if self.up is False:
             _LOGGER.warning("%s available again (down since %s)", self.name, _iso(self.since or 0))
-        if self.up is not True:
+        changed = self.up is not True
+        if changed:
             self.since = time.time()
         self.up, self.last_error, self.failures, self.retry_at = True, None, 0, 0.0
+        self.restored_down_since = None
         self.last_success = time.time()
+        if changed or self.last_success - self._saved_success >= SAVE_SUCCESS_EVERY_S:
+            self._persist()
+
+    def _persist(self) -> None:
+        if self.on_availability is not None:
+            self._saved_success = self.last_success or 0.0
+            self.on_availability()
+
+    def availability_state(self) -> dict[str, Any]:
+        """What survives a restart (wall clock times)."""
+        down = self.since if self.up is False else self.restored_down_since
+        return {"down_since": down, "last_success": self.last_success, "last_error": self.last_error}
 
     def availability(self) -> dict[str, Any]:
         """Machine-readable availability, attached to answers while the appliance is down."""
@@ -393,9 +422,41 @@ class Hub:
         # Set after every successful fast poll of any appliance.
         self.polled = asyncio.Event()
         self.derived = DerivedValues(config.service.derived_state_file)
+        state = config.service.availability_state_file
+        self.availability_file = Path(state).expanduser() if state else None
+        restored = self._load_availability()
         for app in self.appliances.values():
             app.on_fast_poll = self.polled.set
             app.derived_values = self.derived
+            app.on_availability = self.save_availability
+            saved = restored.get(app.name) or {}
+            app.last_success = _number(saved.get("last_success"))
+            app.restored_down_since = _number(saved.get("down_since"))
+            app.last_error = saved.get("last_error") if app.restored_down_since else None
+
+    def _load_availability(self) -> dict[str, Any]:
+        if self.availability_file is None or not self.availability_file.exists():
+            return {}
+        try:
+            data = json.loads(self.availability_file.read_text(encoding="utf-8"))
+            return data["appliances"] if isinstance(data.get("appliances"), dict) else {}
+        except (OSError, ValueError, AttributeError, KeyError) as err:
+            _LOGGER.warning("availability state %s not readable, starting fresh: %s",
+                            self.availability_file, err)
+            return {}
+
+    def save_availability(self) -> None:
+        """Keep "unavailable since" and "last success" across restarts."""
+        if self.availability_file is None:
+            return
+        data = {"appliances": {a.name: a.availability_state() for a in self.appliances.values()}}
+        try:
+            self.availability_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.availability_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
+            os.replace(tmp, self.availability_file)
+        except OSError as err:
+            _LOGGER.warning("availability state %s not saved: %s", self.availability_file, err)
 
     def get(self, name: str | None) -> Appliance:
         """Resolve a name or alias (raises ConfigError)."""
@@ -418,8 +479,13 @@ class Hub:
         self._tasks.clear()
         if self.derived.counters:
             self.derived.save()
+        self.save_availability()
         for app in self.appliances.values():
             await app.client.close()
+
+
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _iso(ts: float) -> str:

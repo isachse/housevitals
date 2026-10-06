@@ -95,5 +95,12 @@
     "battery_max_charge_w": 10000,
     "battery_max_discharge_w": 10000,
     "surplus_threshold_w": 1000
+  },
+  "insights": {
+    "living_area_m2": 480,
+    "consumption_share": 0.7,
+    "grid_price_eur_per_kwh": 0.30,
+    "pv_price_eur_per_kwh": 0.0,
+    "water_price_eur_per_m3": 4.5
   }
 }

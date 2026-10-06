@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from . import i18n, queries
 from .context import Services
 from .errors import HomeModbusError
+from .insights import Insights
 
 
 class ControlDisabledError(HomeModbusError):
@@ -163,6 +164,7 @@ def build_router(services: Services, control_token: str | None = None) -> APIRou
 
     if services.history is not None:
         _history_routes(router, services, Lang)
+        _insights_routes(router, services)
     if services.charts is not None:
         _chart_routes(router, services, Lang)
     if services.forecast is not None:
@@ -255,6 +257,21 @@ def _history_routes(router: APIRouter, services: Services, Lang) -> None:
     ) -> dict[str, Any]:
         """Hours and share per state, starts and run lengths."""
         return await history.runtime(hub.get(name), key, start, end, lang)
+
+
+def _insights_routes(router: APIRouter, services: Services) -> None:
+    insights = Insights(services.history, services.config.insights)
+
+    @router.get("/insights", tags=["insights"])
+    async def get_insights(
+        start: str = Query("", description="First month (ISO date, snapped to its month start); "
+                                           "default 12 months before the current month"),
+        end: str = Query("", description="End (exclusive, snapped to a month start); default now"),
+    ) -> dict[str, Any]:
+        """Heating and hot water per month for tenants' utility bills: heat, heat pump
+        electricity (measured or estimated from operating hours), PV share, degree days.
+        The page /insights shows it with costs and savings."""
+        return await insights.report(start, end)
 
 
 def _forecast_routes(router: APIRouter, services: Services) -> None:

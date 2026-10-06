@@ -168,3 +168,36 @@ async def test_metrics_stop_while_down():
     assert "housevitals.flow_temperature" not in names and "housevitals.up" in names
     provider.shutdown()
     await hub.stop()
+
+
+async def test_outage_start_survives_a_restart(tmp_path):
+    """"Unavailable since" and "last success" are kept across restarts of the service."""
+    state = tmp_path / "availability.json"
+    port, server, task = await _start_neo()
+    config = _config(hp=port)
+    config.service.availability_state_file = str(state)
+    hub = Hub(config)
+    app = hub.get("hp")
+    await app.poll("fast")
+    success = app.last_success
+    await server.shutdown()
+    task.cancel()
+    await app.poll("fast")  # down now
+    down_since = app.since
+    await hub.stop()
+
+    restarted = Hub(config)  # still down after the restart: the outage keeps its start
+    app = restarted.get("hp")
+    assert app.last_success == success
+    await app.poll("fast")
+    assert app.up is False and app.since == down_since
+    assert app.availability()["last_success"] is not None
+    await restarted.stop()
+
+    state.write_text(json.dumps({"appliances": {"hp": {"down_since": None, "last_success": 1000.0}}}))
+    app = Hub(config).get("hp")  # was up before the restart: down since its last success
+    await app.poll("fast")
+    assert app.since == 1000.0
+
+    state.write_text("not json")
+    assert Hub(config).get("hp").last_success is None  # unreadable state: start fresh
